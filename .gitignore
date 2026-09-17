@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# runtime data (uploaded excel exports, local db)
+/data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# tesseract.js OCR language data cache (downloaded on demand, not part of source)
+*.traineddata
