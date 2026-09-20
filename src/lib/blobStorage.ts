@@ -13,10 +13,17 @@ import { put, del, get, BlobNotFoundError } from "@vercel/blob";
  * of minting a new URL per upload.
  */
 
-/** Reads a file by pathname from the Blob store. Returns null if it doesn't exist. */
+/**
+ * Reads a file by pathname from the Blob store. Returns null if it doesn't exist.
+ *
+ * `useCache: false` is required — `db.json` gets overwritten on every
+ * mutation, and `get()` defaults to serving from Vercel's CDN cache, which
+ * can return the pre-write version for a bit after a `put()`. Without this,
+ * a fresh save can appear to "disappear" on the very next read.
+ */
 export async function readBlobFile(name: string): Promise<Buffer | null> {
   try {
-    const result = await get(name, { access: "private" });
+    const result = await get(name, { access: "private", useCache: false });
     if (!result || result.statusCode !== 200) return null;
     const reader = result.stream.getReader();
     const chunks: Uint8Array[] = [];
