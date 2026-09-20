@@ -259,6 +259,33 @@ export async function deleteKvkMenuAction(menuId: string) {
   if (kingdomId) revalidatePath(`/kingdom/${kingdomId}`);
 }
 
+export async function updateKingdomNameAction(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdmin();
+  const { t } = await getDictionary();
+  const kingdomId = sanitizeSegment(String(formData.get("kingdomId") || "").trim());
+  const name = String(formData.get("name") || "").trim();
+  if (!kingdomId || !name) return { error: t.errors.kingdomNameRequired };
+
+  await withDb((db) => {
+    const kingdom = db.kingdoms.find((k) => k.id === kingdomId);
+    if (kingdom) {
+      kingdom.name = name;
+    } else {
+      db.kingdoms.push({ id: kingdomId, name, isPrimary: kingdomId === "2000" });
+    }
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/formula");
+  revalidatePath(`/kingdom/${kingdomId}`);
+  revalidatePath("/");
+  revalidatePath("/compare");
+  return { success: true };
+}
+
 export async function updateFormulaAction(
   _prev: ActionState,
   formData: FormData
