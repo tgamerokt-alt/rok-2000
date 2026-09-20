@@ -9,8 +9,10 @@ export function dbFileName() {
 
 /**
  * Flat Blob store pathname for a KvK snapshot. Filenames already embed the
- * kingdom id (e.g. `2000_2026-09-01_before_statsExport.xlsx`) so this is
- * globally unique within the single flat Blob store namespace without
+ * kingdom id (e.g. `2000_2026-09-01_before_stats.json` — the admin still
+ * *uploads* a Lilith statsExport.xlsx, but it's parsed to JSON once on
+ * upload and only that parsed JSON is what actually gets stored) so this
+ * is globally unique within the single flat Blob store namespace without
  * needing per-kingdom folders.
  */
 export function kvkFileName(kingdomId: string, fileName: string) {

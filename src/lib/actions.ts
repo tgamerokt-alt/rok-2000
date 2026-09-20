@@ -10,7 +10,7 @@ import { withDb } from "./db";
 import { kvkFileName, sanitizeSegment } from "./storage";
 import { deleteBlobFile, writeBlobFile } from "./blobStorage";
 import { parseStatsExport, XlsxParseError } from "./xlsx";
-import { Campaign, DEFAULT_DKP_FORMULA, DkpFormula, StatWeight } from "./types";
+import { Campaign, DEFAULT_DKP_FORMULA, DkpFormula, MemberStat, StatWeight } from "./types";
 import { getDictionary, LOCALE_COOKIE } from "./i18n/locale";
 import { formatTemplate, locales } from "./i18n/dictionaries";
 import { THEME_COOKIE } from "./theme";
@@ -97,7 +97,7 @@ function readFormWeight(formData: FormData, key: string, fallback: StatWeight): 
   return { weight: Number.isFinite(weight) ? weight : fallback.weight, enabled };
 }
 
-/** Permanently deletes the before/after xlsx files backing each of these KvK menus. */
+/** Permanently deletes the before/after snapshot files backing each of these KvK menus. */
 async function deleteKvkFiles(menus: { kingdomId: string; beforeFileName: string; afterFileName: string }[]) {
   await Promise.all(
     menus.flatMap((m) => [
@@ -107,22 +107,26 @@ async function deleteKvkFiles(menus: { kingdomId: string; beforeFileName: string
   );
 }
 
+/**
+ * Parses the uploaded xlsx immediately on upload and keeps only the parsed
+ * JSON — the xlsx library is never needed again once a snapshot is stored,
+ * only at this one upload/validate step.
+ */
 async function readValidatedFile(
   formData: FormData,
   field: string,
   t: Awaited<ReturnType<typeof getDictionary>>["t"]
-): Promise<{ buffer: Buffer } | { error: string }> {
+): Promise<{ members: MemberStat[] } | { error: string }> {
   const file = formData.get(field);
   if (!(file instanceof File) || file.size === 0) {
     return { error: t.errors.needFile };
   }
   const buffer = Buffer.from(await file.arrayBuffer());
   try {
-    parseStatsExport(buffer);
+    return { members: parseStatsExport(buffer) };
   } catch (err) {
     return { error: xlsxErrorMessage(err, t) };
   }
-  return { buffer };
 }
 
 export async function createKvkMenuAction(
@@ -146,11 +150,11 @@ export async function createKvkMenuAction(
   const afterResult = await readValidatedFile(formData, "afterFile", t);
   if ("error" in afterResult) return { error: afterResult.error };
 
-  const beforeFileName = `${kingdomId}_${startDate}_before_statsExport.xlsx`;
-  const afterFileName = `${kingdomId}_${endDate}_after_statsExport.xlsx`;
+  const beforeFileName = `${kingdomId}_${startDate}_before_stats.json`;
+  const afterFileName = `${kingdomId}_${endDate}_after_stats.json`;
   await Promise.all([
-    writeBlobFile(kvkFileName(kingdomId, beforeFileName), beforeResult.buffer),
-    writeBlobFile(kvkFileName(kingdomId, afterFileName), afterResult.buffer),
+    writeBlobFile(kvkFileName(kingdomId, beforeFileName), JSON.stringify(beforeResult.members)),
+    writeBlobFile(kvkFileName(kingdomId, afterFileName), JSON.stringify(afterResult.members)),
   ]);
 
   const now = new Date().toISOString();
@@ -194,18 +198,18 @@ export async function updateKvkMenuFileAction(
     return { error: t.errors.needFileOrName };
   }
 
-  let beforeBuffer: Buffer | null = null;
-  let afterBuffer: Buffer | null = null;
+  let beforeMembers: MemberStat[] | null = null;
+  let afterMembers: MemberStat[] | null = null;
 
   if (hasBefore) {
     const result = await readValidatedFile(formData, "beforeFile", t);
     if ("error" in result) return { error: result.error };
-    beforeBuffer = result.buffer;
+    beforeMembers = result.members;
   }
   if (hasAfter) {
     const result = await readValidatedFile(formData, "afterFile", t);
     if ("error" in result) return { error: result.error };
-    afterBuffer = result.buffer;
+    afterMembers = result.members;
   }
 
   const menuInfo = await withDb((db) => {
@@ -219,11 +223,11 @@ export async function updateKvkMenuFileAction(
   if (!menuInfo) return { error: t.errors.menuNotFound };
 
   await Promise.all([
-    beforeBuffer
-      ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.beforeFileName), beforeBuffer)
+    beforeMembers
+      ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.beforeFileName), JSON.stringify(beforeMembers))
       : Promise.resolve(),
-    afterBuffer
-      ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.afterFileName), afterBuffer)
+    afterMembers
+      ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.afterFileName), JSON.stringify(afterMembers))
       : Promise.resolve(),
   ]);
 

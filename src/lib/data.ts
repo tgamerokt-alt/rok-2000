@@ -1,9 +1,8 @@
 import { readDbSnapshot } from "./db";
 import { kvkFileName } from "./storage";
 import { readBlobFile } from "./blobStorage";
-import { parseStatsExport } from "./xlsx";
 import { diffSnapshots, scoreMembers } from "./dkp";
-import { DEFAULT_DKP_FORMULA, DkpFormula, KvkMenu, ManualKingdomStat } from "./types";
+import { DEFAULT_DKP_FORMULA, DkpFormula, KvkMenu, ManualKingdomStat, MemberStat } from "./types";
 
 export async function getFormula(kingdomId: string): Promise<DkpFormula> {
   const db = await readDbSnapshot();
@@ -29,8 +28,8 @@ export async function getScoredMembers(menu: KvkMenu) {
   if (!beforeBuffer || !afterBuffer) {
     throw new Error(`Missing snapshot file(s) in Blob store for KvK menu ${menu.id}`);
   }
-  const before = parseStatsExport(beforeBuffer);
-  const after = parseStatsExport(afterBuffer);
+  const before = JSON.parse(beforeBuffer.toString("utf8")) as MemberStat[];
+  const after = JSON.parse(afterBuffer.toString("utf8")) as MemberStat[];
   const delta = diffSnapshots(before, after);
   const formula = await getFormula(menu.kingdomId);
   return scoreMembers(delta, formula);

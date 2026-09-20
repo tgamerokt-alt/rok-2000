@@ -5,9 +5,18 @@
 A self-hosted KvK stats dashboard for Rise of Kingdoms, modeled after
 statsmasterdatahub.com (Statsmaster). Next.js 16 (App Router, TypeScript,
 Tailwind v4). No traditional database — `db.json` (kingdoms/KvK menus/
-formulas/campaigns/manual stats) and the uploaded `statsExport.xlsx`
-snapshots are stored as plain files in a private **Vercel Blob** store,
-read/written via `src/lib/blobStorage.ts`. This replaced an earlier
+formulas/campaigns/manual stats) and the two uploaded snapshots per KvK
+menu are stored as plain files in a private **Vercel Blob** store,
+read/written via `src/lib/blobStorage.ts`. The admin still *uploads* a
+Lilith `statsExport.xlsx` for each snapshot, but `parseStatsExport`
+(`xlsx.ts`) parses it to `MemberStat[]` **once, at upload time**
+(`createKvkMenuAction`/`updateKvkMenuFileAction` in `actions.ts`) and only
+that parsed JSON is what actually gets written to Blob — the raw xlsx
+bytes are discarded after parsing. `getScoredMembers` (`data.ts`) then just
+`JSON.parse`s the stored snapshot on every render instead of re-parsing an
+xlsx workbook each time, which is both faster and means the `xlsx`
+package is only ever touched on the upload path, never the read path.
+This replaced an earlier
 local-disk design (files under a gitignored `data/`, no longer used) once
 the app needed to run on Vercel, whose serverless functions have a
 read-only filesystem that doesn't persist across invocations/deploys. An
@@ -103,9 +112,9 @@ src/app/
     kingdoms/                        multi-kingdom groups + per-kingdom snapshot upload
 
 Vercel Blob (one private store) — flat, no folders:
-  db.json                                        kingdoms, kvkMenus, formulas, groups
-  <id>__<id>_<startDate>_before_statsExport.xlsx
-  <id>__<id>_<endDate>_after_statsExport.xlsx
+  db.json                                    kingdoms, kvkMenus, formulas, groups
+  <id>__<id>_<startDate>_before_stats.json   parsed MemberStat[], not the raw xlsx upload
+  <id>__<id>_<endDate>_after_stats.json      parsed MemberStat[], not the raw xlsx upload
 ```
 
 ## Storage (Vercel Blob)
@@ -200,13 +209,14 @@ DKP formula (`DkpFormula` in `types.ts`) is per-kingdom, stored in
   `SnapshotArrow` in `src/components/ui/SnapshotSlot.tsx`), used twice side
   by side (before → after) in both `AdminMenusClient.tsx` and
   `KingdomsClient.tsx`.
-- Deletes/edits must never leave orphaned xlsx bytes on disk. `updateKvkMenuFileAction`
-  deletes the old file before writing the replacement (`replaceFile` in
-  `actions.ts`), and `deleteKvkMenuAction` deletes both files. This cascades:
+- Deletes/edits must never leave orphaned snapshot blobs behind.
+  `updateKvkMenuFileAction` overwrites the existing blob in place
+  (`writeBlobFile`'s `allowOverwrite: true` — no separate delete-then-write
+  step needed), and `deleteKvkMenuAction` deletes both blobs. This cascades:
   removing a kingdom from a campaign team, deleting a team, or deleting a
   campaign (`removeCampaignKingdomAction` / `deleteCampaignTeamAction` /
   `deleteCampaignAction`) also permanently deletes every `KvkMenu` (and its
-  before/after xlsx files) for each affected kingdom — by explicit admin
+  before/after snapshot blobs) for each affected kingdom — by explicit admin
   request, even though the same kingdom could in principle belong to another
   campaign. The confirm dialogs for these three actions say so; don't revert
   to a "stays in place" message without also reverting the deletion logic.
