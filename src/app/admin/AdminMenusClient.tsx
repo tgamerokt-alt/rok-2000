@@ -5,7 +5,6 @@ import {
   ActionState,
   createKvkMenuAction,
   deleteKvkMenuAction,
-  updateKingdomNameAction,
   updateKvkMenuFileAction,
 } from "@/lib/actions";
 import { KvkMenu } from "@/lib/types";
@@ -94,64 +93,6 @@ function CreateMenuForm({ kingdomId, t }: { kingdomId: string; t: Dictionary }) 
           {t.common.cancel}
         </button>
       </div>
-    </form>
-  );
-}
-
-function KingdomNameEditor({
-  kingdomId,
-  name,
-  t,
-}: {
-  kingdomId: string;
-  name: string;
-  t: Dictionary;
-}) {
-  const [state, formAction, pending] = useActionState(updateKingdomNameAction, initialState);
-  const [editing, setEditing] = useState(false);
-
-  useEffect(() => {
-    if (state.error) notifyResult({ success: false, message: state.error });
-    else if (state.success) {
-      notifyResult({ success: true, message: t.admin.menus.kingdomNameSaveSuccess });
-      setEditing(false);
-    }
-  }, [state, t]);
-
-  if (!editing) {
-    return (
-      <button
-        onClick={() => setEditing(true)}
-        className="mb-4 text-xs text-slate-500 underline hover:text-amber-500 dark:text-slate-400"
-      >
-        {t.admin.menus.editKingdomName}
-      </button>
-    );
-  }
-
-  return (
-    <form action={formAction} className="mb-4 flex flex-wrap items-center gap-2">
-      <input type="hidden" name="kingdomId" value={kingdomId} />
-      <input
-        name="name"
-        defaultValue={name}
-        placeholder={t.admin.menus.kingdomNamePlaceholder}
-        className="rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-sm text-slate-900 focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-      />
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-60"
-      >
-        {pending ? t.common.saving : t.common.save}
-      </button>
-      <button
-        type="button"
-        onClick={() => setEditing(false)}
-        className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-      >
-        {t.common.cancel}
-      </button>
     </form>
   );
 }
@@ -309,13 +250,11 @@ function MenuRow({ menu, t, locale }: { menu: KvkMenu; t: Dictionary; locale: st
 
 export default function AdminMenusClient({
   kingdomId,
-  kingdomName,
   menus,
   t,
   locale,
 }: {
   kingdomId: string;
-  kingdomName: string;
   menus: KvkMenu[];
   t: Dictionary;
   locale: string;
@@ -324,11 +263,9 @@ export default function AdminMenusClient({
     <main className="flex-1">
       <PageContainer>
         <PageHeader
-          title={formatTemplate(t.admin.menus.title, { name: kingdomName })}
+          title={formatTemplate(t.admin.menus.title, { id: kingdomId })}
           subtitle={t.admin.menus.subtitle}
         />
-
-        <KingdomNameEditor kingdomId={kingdomId} name={kingdomName} t={t} />
 
         <CreateMenuForm kingdomId={kingdomId} t={t} />
 

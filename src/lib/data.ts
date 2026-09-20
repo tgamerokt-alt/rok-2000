@@ -2,7 +2,7 @@ import { readDbSnapshot } from "./db";
 import { kvkFileName } from "./storage";
 import { readBlobFile } from "./blobStorage";
 import { diffSnapshots, scoreMembers } from "./dkp";
-import { DEFAULT_DKP_FORMULA, DkpFormula, Kingdom, KvkMenu, ManualKingdomStat, MemberStat } from "./types";
+import { DEFAULT_DKP_FORMULA, DkpFormula, KvkMenu, ManualKingdomStat, MemberStat } from "./types";
 
 export async function getFormula(kingdomId: string): Promise<DkpFormula> {
   const db = await readDbSnapshot();
@@ -38,11 +38,6 @@ export async function getScoredMembers(menu: KvkMenu) {
 export async function listKingdoms() {
   const db = await readDbSnapshot();
   return db.kingdoms;
-}
-
-export async function getKingdom(kingdomId: string): Promise<Kingdom | null> {
-  const db = await readDbSnapshot();
-  return db.kingdoms.find((k) => k.id === kingdomId) || null;
 }
 
 export async function listCampaigns() {

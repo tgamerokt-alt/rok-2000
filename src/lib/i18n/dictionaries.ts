@@ -106,10 +106,7 @@ export const dictionaries = {
     admin: {
       nav: { menus: "KvK menus", formula: "DKP formula", campaigns: "Campaigns" },
       menus: {
-        title: "Manage KvK — {name}",
-        editKingdomName: "Edit name",
-        kingdomNamePlaceholder: "e.g. Kingdom 2000",
-        kingdomNameSaveSuccess: "Kingdom name updated",
+        title: "Manage KvK — Kingdom {id}",
         subtitle:
           'Choose "Update files" on an existing menu to replace its data, or "Add menu" to create a new KvK. Upload two exports: one from the start date (captures each governor\'s starting power) and one from during/end of the KvK — used to calculate DKP and how much power changed.',
         addMenu: "+ Add menu (new KvK)",
@@ -242,7 +239,6 @@ export const dictionaries = {
       cannotReadFile: "Could not read the uploaded file",
       menuNotFound: "Menu not found",
       kingdomRequired: "Kingdom is required",
-      kingdomNameRequired: "Please enter a kingdom name",
       campaignRequired: "Please provide a campaign name and code",
       teamNameRequired: "Please provide a camp name",
       campNotAvailable: "This campaign already has a camp with that name",
@@ -350,10 +346,7 @@ export const dictionaries = {
     admin: {
       nav: { menus: "KvK เมนู", formula: "สูตร DKP", campaigns: "แคมเปญ" },
       menus: {
-        title: "จัดการ KvK — {name}",
-        editKingdomName: "แก้ไขชื่อ",
-        kingdomNamePlaceholder: "เช่น Kingdom 2000",
-        kingdomNameSaveSuccess: "แก้ไขชื่อ Kingdom สำเร็จ",
+        title: "จัดการ KvK — Kingdom {id}",
         subtitle:
           'เลือก "อัปเดตไฟล์" บนเมนูเดิมเพื่อแทนที่ข้อมูล หรือกด "เพิ่มเมนู" เพื่อสร้าง KvK ใหม่ — อัปโหลด 2 ไฟล์: ไฟล์วันเริ่มต้น (เก็บพลังเริ่มต้นของแต่ละคน) และไฟล์ช่วง/ปลาย KvK (ใช้คำนวณ DKP และดูว่าพลังเปลี่ยนไปเท่าไหร่)',
         addMenu: "+ เพิ่มเมนู (KvK ใหม่)",
@@ -484,7 +477,6 @@ export const dictionaries = {
       cannotReadFile: "ไม่สามารถอ่านไฟล์ที่อัปโหลดได้",
       menuNotFound: "ไม่พบเมนูที่เลือก",
       kingdomRequired: "ไม่พบ Kingdom",
-      kingdomNameRequired: "กรุณาระบุชื่อ Kingdom",
       campaignRequired: "กรุณาระบุชื่อแคมเปญและรหัส",
       teamNameRequired: "กรุณาระบุชื่อค่าย",
       campNotAvailable: "แคมเปญนี้มีค่ายชื่อนี้อยู่แล้ว",
