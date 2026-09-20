@@ -1,6 +1,6 @@
-import fs from "node:fs/promises";
 import { DbSchema } from "./types";
-import { dataDir, dbFilePath, ensureDir } from "./storage";
+import { dbFileName } from "./storage";
+import { readBlobFile, writeBlobFile } from "./blobStorage";
 
 const EMPTY_DB: DbSchema = {
   kingdoms: [{ id: "2000", name: "Kingdom 2000", isPrimary: true }],
@@ -11,24 +11,17 @@ const EMPTY_DB: DbSchema = {
 };
 
 async function readDb(): Promise<DbSchema> {
-  try {
-    const raw = await fs.readFile(dbFilePath(), "utf8");
-    const parsed = JSON.parse(raw) as Partial<DbSchema>;
-    return { ...EMPTY_DB, ...parsed };
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      await writeDb(EMPTY_DB);
-      return EMPTY_DB;
-    }
-    throw err;
+  const raw = await readBlobFile(dbFileName());
+  if (raw === null) {
+    await writeDb(EMPTY_DB);
+    return EMPTY_DB;
   }
+  const parsed = JSON.parse(raw.toString("utf8")) as Partial<DbSchema>;
+  return { ...EMPTY_DB, ...parsed };
 }
 
 async function writeDb(db: DbSchema): Promise<void> {
-  await ensureDir(dataDir());
-  const tmpPath = `${dbFilePath()}.${process.pid}.${Date.now()}.tmp`;
-  await fs.writeFile(tmpPath, JSON.stringify(db, null, 2), "utf8");
-  await fs.rename(tmpPath, dbFilePath());
+  await writeBlobFile(dbFileName(), JSON.stringify(db, null, 2));
 }
 
 /** Serializes read-modify-write cycles so concurrent requests never clobber each other. */

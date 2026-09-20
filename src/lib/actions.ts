@@ -1,6 +1,5 @@
 "use server";
 
-import fs from "node:fs/promises";
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -8,7 +7,8 @@ import { revalidatePath } from "next/cache";
 import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "./session";
 import { requireAdmin } from "./require-admin";
 import { withDb } from "./db";
-import { ensureDir, kingdomDir, kvkFilePath, sanitizeSegment } from "./storage";
+import { kvkFileName, sanitizeSegment } from "./storage";
+import { deleteBlobFile, writeBlobFile } from "./blobStorage";
 import { parseStatsExport, XlsxParseError } from "./xlsx";
 import { Campaign, DEFAULT_DKP_FORMULA, DkpFormula, StatWeight } from "./types";
 import { getDictionary, LOCALE_COOKIE } from "./i18n/locale";
@@ -97,18 +97,12 @@ function readFormWeight(formData: FormData, key: string, fallback: StatWeight): 
   return { weight: Number.isFinite(weight) ? weight : fallback.weight, enabled };
 }
 
-/** Deletes whatever's at `filePath` before writing `buffer`, so an edit never leaves stale bytes behind. */
-async function replaceFile(filePath: string, buffer: Buffer) {
-  await fs.rm(filePath, { force: true });
-  await fs.writeFile(filePath, buffer);
-}
-
 /** Permanently deletes the before/after xlsx files backing each of these KvK menus. */
 async function deleteKvkFiles(menus: { kingdomId: string; beforeFileName: string; afterFileName: string }[]) {
   await Promise.all(
     menus.flatMap((m) => [
-      fs.rm(kvkFilePath(m.kingdomId, m.beforeFileName), { force: true }),
-      fs.rm(kvkFilePath(m.kingdomId, m.afterFileName), { force: true }),
+      deleteBlobFile(kvkFileName(m.kingdomId, m.beforeFileName)),
+      deleteBlobFile(kvkFileName(m.kingdomId, m.afterFileName)),
     ])
   );
 }
@@ -154,10 +148,9 @@ export async function createKvkMenuAction(
 
   const beforeFileName = `${kingdomId}_${startDate}_before_statsExport.xlsx`;
   const afterFileName = `${kingdomId}_${endDate}_after_statsExport.xlsx`;
-  await ensureDir(kingdomDir(kingdomId));
   await Promise.all([
-    fs.writeFile(kvkFilePath(kingdomId, beforeFileName), beforeResult.buffer),
-    fs.writeFile(kvkFilePath(kingdomId, afterFileName), afterResult.buffer),
+    writeBlobFile(kvkFileName(kingdomId, beforeFileName), beforeResult.buffer),
+    writeBlobFile(kvkFileName(kingdomId, afterFileName), afterResult.buffer),
   ]);
 
   const now = new Date().toISOString();
@@ -227,10 +220,10 @@ export async function updateKvkMenuFileAction(
 
   await Promise.all([
     beforeBuffer
-      ? replaceFile(kvkFilePath(menuInfo.kingdomId, menuInfo.beforeFileName), beforeBuffer)
+      ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.beforeFileName), beforeBuffer)
       : Promise.resolve(),
     afterBuffer
-      ? replaceFile(kvkFilePath(menuInfo.kingdomId, menuInfo.afterFileName), afterBuffer)
+      ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.afterFileName), afterBuffer)
       : Promise.resolve(),
   ]);
 
@@ -254,8 +247,8 @@ export async function deleteKvkMenuAction(menuId: string) {
   });
   if (kingdomId && beforeFileName && afterFileName) {
     await Promise.all([
-      fs.rm(kvkFilePath(kingdomId, beforeFileName), { force: true }),
-      fs.rm(kvkFilePath(kingdomId, afterFileName), { force: true }),
+      deleteBlobFile(kvkFileName(kingdomId, beforeFileName)),
+      deleteBlobFile(kvkFileName(kingdomId, afterFileName)),
     ]);
   }
   revalidatePath("/admin");

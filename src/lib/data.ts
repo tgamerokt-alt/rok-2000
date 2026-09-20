@@ -1,6 +1,6 @@
-import fs from "node:fs/promises";
 import { readDbSnapshot } from "./db";
-import { kvkFilePath } from "./storage";
+import { kvkFileName } from "./storage";
+import { readBlobFile } from "./blobStorage";
 import { parseStatsExport } from "./xlsx";
 import { diffSnapshots, scoreMembers } from "./dkp";
 import { DEFAULT_DKP_FORMULA, DkpFormula, KvkMenu, ManualKingdomStat } from "./types";
@@ -23,9 +23,12 @@ export async function getKvkMenu(menuId: string): Promise<KvkMenu | null> {
 
 export async function getScoredMembers(menu: KvkMenu) {
   const [beforeBuffer, afterBuffer] = await Promise.all([
-    fs.readFile(kvkFilePath(menu.kingdomId, menu.beforeFileName)),
-    fs.readFile(kvkFilePath(menu.kingdomId, menu.afterFileName)),
+    readBlobFile(kvkFileName(menu.kingdomId, menu.beforeFileName)),
+    readBlobFile(kvkFileName(menu.kingdomId, menu.afterFileName)),
   ]);
+  if (!beforeBuffer || !afterBuffer) {
+    throw new Error(`Missing snapshot file(s) in Blob store for KvK menu ${menu.id}`);
+  }
   const before = parseStatsExport(beforeBuffer);
   const after = parseStatsExport(afterBuffer);
   const delta = diffSnapshots(before, after);

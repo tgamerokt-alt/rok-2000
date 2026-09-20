@@ -4,8 +4,17 @@
 
 A self-hosted KvK stats dashboard for Rise of Kingdoms, modeled after
 statsmasterdatahub.com (Statsmaster). Next.js 16 (App Router, TypeScript,
-Tailwind v4). No external database — everything is stored as local files
-under `data/` (gitignored).
+Tailwind v4). No traditional database — `db.json` (kingdoms/KvK menus/
+formulas/campaigns/manual stats) and the uploaded `statsExport.xlsx`
+snapshots are stored as plain files in a private **Vercel Blob** store,
+read/written via `src/lib/blobStorage.ts`. This replaced an earlier
+local-disk design (files under a gitignored `data/`, no longer used) once
+the app needed to run on Vercel, whose serverless functions have a
+read-only filesystem that doesn't persist across invocations/deploys. An
+intermediate design stored these same files on Google Drive (service
+account, then OAuth as the admin's own account) — that was dropped in
+favor of Vercel Blob because Drive's API round-trips were noticeably
+slower for this app's read-modify-write-on-every-mutation pattern.
 
 ## Why this project exists / key decisions
 
@@ -62,8 +71,9 @@ src/lib/
   types.ts          MemberStat, DkpFormula, KvkMenu, Kingdom, KingdomGroup, DbSchema
   xlsx.ts           parses statsExport.xlsx -> MemberStat[] (Thai header map lives here)
   dkp.ts            diffSnapshots (before/after -> per-KvK gains + power_start) + scoreMember(s) (derives kp_t4t5 / dead_total / dead_t4t5 / power_change / dkp)
-  storage.ts        path helpers for data/ (kingdom dirs, xlsx file paths)
-  db.ts             tiny JSON-file "database" (data/db.json) with a write queue
+  storage.ts        sanitizeSegment + Blob pathname builders (dbFileName, kvkFileName)
+  blobStorage.ts    @vercel/blob-backed client; readBlobFile/writeBlobFile/deleteBlobFile by pathname in one private store (BLOB_READ_WRITE_TOKEN)
+  db.ts             tiny JSON "database" (db.json on Vercel Blob, via blobStorage.ts) with a write queue
   data.ts           read-only server helpers used by pages (listKvkMenus, getScoredMembers, ...)
   actions.ts        ALL server actions (login, create/update/delete KvK menu, formula, groups)
   session.ts        JWT (jose) session token create/verify, cookie name rok_session
@@ -92,11 +102,42 @@ src/app/
     formula/                         DKP weight editor
     kingdoms/                        multi-kingdom groups + per-kingdom snapshot upload
 
-data/                (gitignored, created at runtime)
-  db.json            kingdoms, kvkMenus, formulas, groups
-  kingdoms/<id>/<id>_<startDate>_before_statsExport.xlsx
-  kingdoms/<id>/<id>_<endDate>_after_statsExport.xlsx
+Vercel Blob (one private store) — flat, no folders:
+  db.json                                        kingdoms, kvkMenus, formulas, groups
+  <id>__<id>_<startDate>_before_statsExport.xlsx
+  <id>__<id>_<endDate>_after_statsExport.xlsx
 ```
+
+## Storage (Vercel Blob)
+
+- All persistence (`db.json` + every uploaded xlsx snapshot) lives as flat
+  pathnames in one private Vercel Blob store, accessed via
+  `src/lib/blobStorage.ts` (`@vercel/blob`'s `put`/`get`/`del`). Blobs are
+  created with `access: "private"` (never fetchable by a guessed/leaked
+  URL — every read/write goes through the server-side token) and
+  `addRandomSuffix: false` + `allowOverwrite: true` so a given pathname
+  behaves like a normal file: writing to it again overwrites in place
+  instead of minting a new URL, which is what lets `db.ts`'s
+  read-modify-write cycle keep updating the *same* `db.json`.
+- An earlier design stored these same files on Google Drive first with a
+  service account, then with OAuth as the admin's own account (see git
+  history) — dropped for Vercel Blob because Drive's API was noticeably
+  slower for this app's every-mutation read-modify-write pattern, and Blob
+  needs no interactive consent flow to set up.
+- Env var: `BLOB_READ_WRITE_TOKEN`. On Vercel, this is injected
+  automatically once a Blob store is attached to the project (Project →
+  Storage → Create Database → Blob → Connect to Project) — no manual
+  Environment Variables entry needed there. For local dev, copy that same
+  token from Project → Settings → Environment Variables into `.env`.
+- Filenames are unique on their own (they already embed the kingdom id) and
+  live directly in the one store — no per-kingdom folders, see
+  `kvkFileName` in `storage.ts`.
+- Vercel Blob's Hobby (free) tier includes 1GB storage/month, 10,000 Simple
+  Operations, 2,000 Advanced Operations, and 10GB data transfer — far more
+  than this single-admin tool's tiny `db.json` + a handful of xlsx
+  snapshots will ever use. `del()` calls are free and uncapped. Exceeding
+  the free tier doesn't bill you, it just blocks further Blob access for
+  ~30 days — not a realistic concern at this app's scale.
 
 ## Data model quick reference
 
@@ -210,9 +251,11 @@ way `resetFormulaAction` is already invoked directly from a button.
   `await requireAdmin()`, call `revalidatePath(...)` on anything it
   changed, return `{ error }` or `{ success: true }` (the `ActionState`
   shape all forms expect).
-- **Run locally**: `npm run dev` (or `npm run build && npm start`). Data
-  lives in `./data` next to the project — delete it to reset to a clean
-  state.
+- **Run locally**: `npm run dev` (or `npm run build && npm start`). Needs
+  `BLOB_READ_WRITE_TOKEN` in `.env` (see Storage section above) — data
+  lives in the Vercel Blob store, not on local disk. To reset to a clean
+  state, delete the blobs in that store (Project → Storage → Blob →
+  Browse).
 - **Deploying (production server, avoiding port collisions)**: `next
   start` reads the `PORT` env var (default 3000) — it can't be set via
   `.env` since the HTTP server boots before `.env` loads (Next's own
@@ -221,6 +264,12 @@ way `resetFormulaAction` is already invoked directly from a button.
   that port is actually free on the target server first (`netstat -ano |
   findstr :3001` on Windows, `lsof -i :3001` on Linux) and edit the value
   if it's taken, especially if this server already hosts other apps.
+- **Deploying to Vercel**: attach a Blob store to the project (Project →
+  Storage → Create Database → Blob → Connect to Project) — this injects
+  `BLOB_READ_WRITE_TOKEN` automatically, no manual Environment Variables
+  entry needed for it. Without it every `db.ts`/xlsx read or write throws.
+  No persistent-disk/PM2 concerns apply here since storage is already
+  external (Vercel Blob), unlike the Render/PM2 path above.
 - **Test file**: a real sample export used during development is at
   `C:\Users\windows\Downloads\4180_20260912_20260912_statsExport.xlsx` (also
   `2000_20260501_20260501_statsExport (1).xlsx`).
