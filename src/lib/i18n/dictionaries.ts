@@ -130,8 +130,8 @@ export const dictionaries = {
         replaceFile: "Save changes",
         replacing: "Updating...",
         updateSuccess: "Menu updated successfully",
-        updateHint:
-          "Edit the name and/or attach a new file for either date — you don't need to re-upload both, or attach any file at all if you're just renaming",
+        updateHint: "Attach a new file for either date — you don't need to re-upload both",
+        renameMenu: "Rename",
         lastUpdated: "Last updated",
         beforeFile: "Before",
         afterFile: "After",
@@ -374,8 +374,8 @@ export const dictionaries = {
         replaceFile: "บันทึกการเปลี่ยนแปลง",
         replacing: "กำลังอัปเดต...",
         updateSuccess: "อัปเดตเมนูสำเร็จ",
-        updateHint:
-          "แก้ชื่อ และ/หรือแนบไฟล์ใหม่เฉพาะวันที่ต้องการแทนที่ได้เลย ไม่ต้องอัปโหลดใหม่ทั้งคู่ หรือถ้าแค่เปลี่ยนชื่อก็ไม่ต้องแนบไฟล์เลยก็ได้",
+        renameMenu: "แก้ไขชื่อ",
+        updateHint: "แนบไฟล์ใหม่เฉพาะวันที่ต้องการแทนที่ได้เลย ไม่ต้องอัปโหลดใหม่ทั้งคู่",
         lastUpdated: "อัปเดตล่าสุด",
         beforeFile: "ก่อน",
         afterFile: "หลัง",

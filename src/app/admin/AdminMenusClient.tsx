@@ -156,6 +156,60 @@ function KingdomNameEditor({
   );
 }
 
+function MenuNameEditor({ menu, t }: { menu: KvkMenu; t: Dictionary }) {
+  const [state, formAction, pending] = useActionState(updateKvkMenuFileAction, initialState);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (state.error) notifyResult({ success: false, message: state.error });
+    else if (state.success) {
+      notifyResult({ success: true, message: t.admin.menus.updateSuccess });
+      setEditing(false);
+    }
+  }, [state, t]);
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="font-semibold text-slate-900 dark:text-white">{menu.name}</div>
+        <button
+          onClick={() => setEditing(true)}
+          className="text-[11px] text-slate-500 underline hover:text-amber-500 dark:text-slate-400"
+        >
+          {t.admin.menus.renameMenu}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form action={formAction} className="flex flex-wrap items-center gap-2">
+      <input type="hidden" name="menuId" value={menu.id} />
+      <input
+        name="name"
+        defaultValue={menu.name}
+        placeholder={t.admin.menus.namePlaceholder}
+        autoFocus
+        className="rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-sm text-slate-900 focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+      />
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-md bg-amber-500 px-2 py-1 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-60"
+      >
+        {pending ? t.common.saving : t.common.save}
+      </button>
+      <button
+        type="button"
+        onClick={() => setEditing(false)}
+        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+      >
+        {t.common.cancel}
+      </button>
+    </form>
+  );
+}
+
 function MenuRow({ menu, t, locale }: { menu: KvkMenu; t: Dictionary; locale: string }) {
   const [state, formAction, pending] = useActionState(updateKvkMenuFileAction, initialState);
   const [editing, setEditing] = useState(false);
@@ -182,7 +236,7 @@ function MenuRow({ menu, t, locale }: { menu: KvkMenu; t: Dictionary; locale: st
     <Card className="p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="font-semibold text-slate-900 dark:text-white">{menu.name}</div>
+          <MenuNameEditor menu={menu} t={t} />
           <div className="text-xs text-slate-500 dark:text-slate-400">
             {menu.startDate} — {menu.endDate}
           </div>
@@ -217,18 +271,6 @@ function MenuRow({ menu, t, locale }: { menu: KvkMenu; t: Dictionary; locale: st
         >
           <input type="hidden" name="menuId" value={menu.id} />
           <p className="text-xs text-slate-500">{t.admin.menus.updateHint}</p>
-
-          <div>
-            <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
-              {t.admin.menus.nameLabel}
-            </label>
-            <input
-              name="name"
-              defaultValue={menu.name}
-              placeholder={t.admin.menus.namePlaceholder}
-              className="w-full max-w-xs rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-900 focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-            />
-          </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
             <SnapshotSlot
