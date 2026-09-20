@@ -17,6 +17,7 @@ import { ColumnToggle } from "@/components/ui/ColumnToggle";
 const PAGE_SIZE = 50;
 
 type ColumnKey =
+  | "name"
   | "power"
   | "power_change"
   | "kill_t4"
@@ -61,6 +62,8 @@ export default function KvkSummaryClient({
   t: Dictionary;
 }) {
   const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<ColumnKey>("dkp");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [hiddenCols, setHiddenCols] = useState<Set<ColumnKey>>(new Set());
 
@@ -158,8 +161,13 @@ export default function KvkSummaryClient({
     const rows = q
       ? members.filter((m) => m.name.toLowerCase().includes(q) || m.governor_id.includes(q))
       : members;
-    return [...rows].sort((a, b) => b.dkp - a.dkp);
-  }, [members, search]);
+    return [...rows].sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      const cmp = typeof av === "string" ? av.localeCompare(String(bv)) : Number(av) - Number(bv);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [members, search, sortKey, sortDir]);
 
   const totals = useMemo(() => {
     return members.reduce(
@@ -185,6 +193,16 @@ export default function KvkSummaryClient({
 
   function handleSearchChange(value: string) {
     setSearch(value);
+    setPage(1);
+  }
+
+  function handleSort(key: ColumnKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
     setPage(1);
   }
 
@@ -306,10 +324,21 @@ export default function KvkSummaryClient({
               <tr>
                 <th className="px-3 py-2.5 text-left">#</th>
                 <th className="px-3 py-2.5 text-left">{t.kvkSummary.governorId}</th>
-                <th className="px-3 py-2.5 text-left">{t.kvkSummary.player}</th>
+                <th
+                  onClick={() => handleSort("name")}
+                  className="cursor-pointer select-none px-3 py-2.5 text-left hover:text-amber-600 dark:hover:text-amber-400"
+                >
+                  {t.kvkSummary.player}
+                  {sortKey === "name" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                </th>
                 {visibleColumns.map((col) => (
-                  <th key={col.key} className="px-3 py-2.5 text-right">
+                  <th
+                    key={col.key}
+                    onClick={() => handleSort(col.key)}
+                    className="cursor-pointer select-none px-3 py-2.5 text-right hover:text-amber-600 dark:hover:text-amber-400"
+                  >
                     {col.label}
+                    {sortKey === col.key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
                   </th>
                 ))}
               </tr>
@@ -318,7 +347,7 @@ export default function KvkSummaryClient({
               {paginated.map((m, i) => (
                 <tr key={m.governor_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                   <td className="px-3 py-2">
-                    <RankBadge rank={pageStart + i + 1} />
+                    <RankBadge rank={pageStart + i + 1} showMedal={sortKey === "dkp" && sortDir === "desc"} />
                   </td>
                   <td className="px-3 py-2 text-slate-500">{m.governor_id}</td>
                   <td className="px-3 py-2 font-medium text-slate-900 dark:text-white">{m.name}</td>
@@ -347,7 +376,7 @@ export default function KvkSummaryClient({
             <Card key={m.governor_id} className="p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <RankBadge rank={pageStart + i + 1} />
+                  <RankBadge rank={pageStart + i + 1} showMedal={sortKey === "dkp" && sortDir === "desc"} />
                   <div>
                     <div className="font-medium text-slate-900 dark:text-white">{m.name}</div>
                     <div className="text-[11px] text-slate-500">{m.governor_id}</div>
