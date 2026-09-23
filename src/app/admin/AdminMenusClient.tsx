@@ -218,7 +218,9 @@ function MenuRow({ menu, t, locale }: { menu: KvkMenu; t: Dictionary; locale: st
               step={1}
               title={t.admin.menus.beforeSlotTitle}
               description={t.admin.menus.beforeSlotDescription}
-              dateDisplay={menu.startDate}
+              dateInputName="startDate"
+              dateCaption={t.admin.menus.startDate}
+              dateDefaultValue={menu.startDate}
               fileName="beforeFile"
               fileRequired={false}
             />
@@ -227,7 +229,9 @@ function MenuRow({ menu, t, locale }: { menu: KvkMenu; t: Dictionary; locale: st
               step={2}
               title={t.admin.menus.afterSlotTitle}
               description={t.admin.menus.afterSlotDescription}
-              dateDisplay={menu.endDate}
+              dateInputName="endDate"
+              dateCaption={t.admin.menus.endDate}
+              dateDefaultValue={menu.endDate}
               fileName="afterFile"
               fileRequired={false}
             />

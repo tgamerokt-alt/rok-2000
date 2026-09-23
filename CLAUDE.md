@@ -194,11 +194,15 @@ DKP formula (`DkpFormula` in `types.ts`) is per-kingdom, stored in
   beforeFileName, afterFileName`) + **two** xlsx files on disk.
 - Creating a menu ("add menu") requires both files up front and always
   makes a new record + two new files. "Update files" on an existing row
-  replaces whichever of the two files were attached (either or both) and/or
-  the menu's `name` (all three are optional/independent — the action accepts
-  partial updates, at least one of the three must be present), keeping the
-  same id/dates. See `createKvkMenuAction` / `updateKvkMenuFileAction` in
-  `actions.ts`.
+  replaces whichever of the two files were attached (either or both), the
+  `startDate`/`endDate`, and/or the menu's `name` — all independent/optional,
+  the action accepts partial updates (at least one of these must actually
+  change, or produce a no-op that still succeeds), keeping the same id. Since
+  a snapshot's Blob pathname embeds its date (`kvkFileName`), editing a date
+  without also attaching a new file for that slot moves the existing blob's
+  bytes to the new date-embedded pathname (read old → write new → delete
+  old) rather than losing it. See `createKvkMenuAction` /
+  `updateKvkMenuFileAction` in `actions.ts`.
 - `getLatestMenuForKingdom` (used by `/compare`) just takes the menu with
   the newest `startDate` — there's no explicit "current KvK" flag.
 - A governor who isn't present in one of the two files (joined mid-KvK, or

@@ -4,7 +4,7 @@ export function SnapshotSlot({
   description,
   dateInputName,
   dateCaption,
-  dateDisplay,
+  dateDefaultValue,
   fileName,
   fileRequired = true,
 }: {
@@ -16,8 +16,8 @@ export function SnapshotSlot({
   dateInputName?: string;
   /** small caption above the editable date input, e.g. "Start date" */
   dateCaption?: string;
-  /** static date text shown instead of an input, e.g. when editing an existing menu */
-  dateDisplay?: string;
+  /** pre-fills the editable date input, e.g. when editing an existing menu's dates */
+  dateDefaultValue?: string;
   fileName: string;
   fileRequired?: boolean;
 }) {
@@ -28,7 +28,6 @@ export function SnapshotSlot({
           {step}
         </span>
         <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{title}</span>
-        {dateDisplay && <span className="ml-auto text-[11px] text-slate-500">{dateDisplay}</span>}
       </div>
       {description && <p className="mb-2 text-[11px] leading-snug text-slate-500">{description}</p>}
       {dateInputName && (
@@ -38,6 +37,7 @@ export function SnapshotSlot({
             type="date"
             name={dateInputName}
             required
+            defaultValue={dateDefaultValue}
             className="mb-2 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
           />
         </>

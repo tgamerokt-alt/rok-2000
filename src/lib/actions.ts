@@ -8,7 +8,7 @@ import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "./session";
 import { requireAdmin } from "./require-admin";
 import { withDb } from "./db";
 import { kvkFileName, sanitizeSegment } from "./storage";
-import { deleteBlobFile, writeBlobFile } from "./blobStorage";
+import { deleteBlobFile, readBlobFile, writeBlobFile } from "./blobStorage";
 import { parseStatsExport, XlsxParseError } from "./xlsx";
 import { Campaign, DEFAULT_DKP_FORMULA, DkpFormula, MemberStat, StatWeight } from "./types";
 import { getDictionary, LOCALE_COOKIE } from "./i18n/locale";
@@ -193,8 +193,10 @@ export async function updateKvkMenuFileAction(
   const hasBefore = beforeFile instanceof File && beforeFile.size > 0;
   const hasAfter = afterFile instanceof File && afterFile.size > 0;
   const name = String(formData.get("name") || "").trim();
+  const startDate = String(formData.get("startDate") || "").trim();
+  const endDate = String(formData.get("endDate") || "").trim();
 
-  if (!hasBefore && !hasAfter && !name) {
+  if (!hasBefore && !hasAfter && !name && !startDate && !endDate) {
     return { error: t.errors.needFileOrName };
   }
 
@@ -215,20 +217,54 @@ export async function updateKvkMenuFileAction(
   const menuInfo = await withDb((db) => {
     const menu = db.kvkMenus.find((m) => m.id === menuId);
     if (!menu) return null;
+    const prevBeforeFileName = menu.beforeFileName;
+    const prevAfterFileName = menu.afterFileName;
     if (name) menu.name = name;
+    if (startDate && startDate !== menu.startDate) {
+      menu.startDate = startDate;
+      menu.beforeFileName = `${menu.kingdomId}_${startDate}_before_stats.json`;
+    }
+    if (endDate && endDate !== menu.endDate) {
+      menu.endDate = endDate;
+      menu.afterFileName = `${menu.kingdomId}_${endDate}_after_stats.json`;
+    }
     menu.updatedAt = new Date().toISOString();
-    return { kingdomId: menu.kingdomId, beforeFileName: menu.beforeFileName, afterFileName: menu.afterFileName };
+    return {
+      kingdomId: menu.kingdomId,
+      beforeFileName: menu.beforeFileName,
+      afterFileName: menu.afterFileName,
+      prevBeforeFileName,
+      prevAfterFileName,
+    };
   });
 
   if (!menuInfo) return { error: t.errors.menuNotFound };
 
+  // The blob pathname embeds the date, so a date-only edit (no new file
+  // uploaded) needs the existing snapshot's bytes moved to the new pathname.
+  const beforeRenamed = menuInfo.beforeFileName !== menuInfo.prevBeforeFileName;
+  const afterRenamed = menuInfo.afterFileName !== menuInfo.prevAfterFileName;
+
   await Promise.all([
     beforeMembers
       ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.beforeFileName), JSON.stringify(beforeMembers))
+      : beforeRenamed
+      ? readBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevBeforeFileName)).then((data) =>
+          data ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.beforeFileName), data) : undefined
+        )
       : Promise.resolve(),
     afterMembers
       ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.afterFileName), JSON.stringify(afterMembers))
+      : afterRenamed
+      ? readBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevAfterFileName)).then((data) =>
+          data ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.afterFileName), data) : undefined
+        )
       : Promise.resolve(),
+  ]);
+
+  await Promise.all([
+    beforeRenamed ? deleteBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevBeforeFileName)) : Promise.resolve(),
+    afterRenamed ? deleteBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevAfterFileName)) : Promise.resolve(),
   ]);
 
   revalidatePath("/admin");
