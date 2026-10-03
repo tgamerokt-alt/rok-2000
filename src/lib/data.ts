@@ -109,3 +109,64 @@ export async function getGovernorHistory(governorId: string): Promise<GovernorHi
   );
   return entries.filter((e): e is GovernorHistoryEntry => e !== null);
 }
+
+export interface MetricBenchmark {
+  value: number;
+  /** Median among players who earned any DKP in that KvK (the ones who actually fought). */
+  median: number;
+  /** Average of the 10 highest values of this metric in that KvK. */
+  top10Avg: number;
+  /** 1-based position by this metric among the KvK's complete rows. */
+  rank: number;
+}
+
+export interface GovernorBreakdown {
+  member: ScoredMember;
+  playerCount: number;
+  dkp: MetricBenchmark;
+  kills: MetricBenchmark;
+  dead: MetricBenchmark;
+  /** Each enabled DKP formula term for this governor: weight × count = points. */
+  contributions: { key: keyof DkpFormula; weight: number; count: number; points: number }[];
+}
+
+/** One governor's stats in one KvK, benchmarked against the rest of that KvK. Null if absent or incomplete. */
+export async function getGovernorBreakdown(menu: KvkMenu, governorId: string): Promise<GovernorBreakdown | null> {
+  const [members, formula] = await Promise.all([getScoredMembers(menu), getFormula(menu.kingdomId)]);
+  const member = members.find((m) => m.governor_id === governorId);
+  if (!member || member.incomplete) return null;
+
+  const complete = members.filter((m) => !m.incomplete);
+  const fought = complete.filter((m) => m.dkp > 0);
+
+  function benchmark(get: (m: ScoredMember) => number): MetricBenchmark {
+    const value = get(member!);
+    const sortedFought = fought.map(get).sort((a, b) => a - b);
+    const mid = Math.floor(sortedFought.length / 2);
+    const median = sortedFought.length === 0
+      ? 0
+      : sortedFought.length % 2
+        ? sortedFought[mid]
+        : (sortedFought[mid - 1] + sortedFought[mid]) / 2;
+    const top10 = complete.map(get).sort((a, b) => b - a).slice(0, 10);
+    return {
+      value,
+      median,
+      top10Avg: top10.length ? top10.reduce((s, v) => s + v, 0) / top10.length : 0,
+      rank: 1 + complete.filter((m) => get(m) > value).length,
+    };
+  }
+
+  const contributions = (Object.keys(formula) as (keyof DkpFormula)[])
+    .filter((key) => formula[key].enabled && formula[key].weight !== 0)
+    .map((key) => ({ key, weight: formula[key].weight, count: member[key], points: member[key] * formula[key].weight }));
+
+  return {
+    member,
+    playerCount: complete.length,
+    dkp: benchmark((m) => m.dkp),
+    kills: benchmark((m) => m.kp_t4t5),
+    dead: benchmark((m) => m.dead_t4t5),
+    contributions,
+  };
+}

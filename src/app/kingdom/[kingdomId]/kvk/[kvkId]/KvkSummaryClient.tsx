@@ -245,12 +245,20 @@ export default function KvkSummaryClient({
           title={menu.name}
           subtitle={`${t.common.kingdom} ${menu.kingdomId} · ${menu.startDate} — ${menu.endDate}`}
           action={
-            <Link
-              href={`/kingdom/${menu.kingdomId}`}
-              className="text-sm text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400"
-            >
-              {t.common.backToKvkList}
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                href={`/dashboard/${menu.id}/analytics`}
+                className="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-amber-400"
+              >
+                {t.analytics.open}
+              </Link>
+              <Link
+                href={`/kingdom/${menu.kingdomId}`}
+                className="text-sm text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400"
+              >
+                {t.common.backToKvkList}
+              </Link>
+            </div>
           }
         />
 

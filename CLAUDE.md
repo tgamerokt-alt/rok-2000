@@ -105,8 +105,9 @@ src/app/
   kingdom/[kingdomId]/page.tsx       public: list of KvK menus for a kingdom
   kingdom/[kingdomId]/kvk/[kvkId]/   public: simple stats table
   dashboard/[kvkId]/                 public: full sortable/searchable dashboard (Statsmaster-style)
+  dashboard/[kvkId]/analytics/       public: per-KvK analysis (KPI row, written insights, 6 hand-rolled SVG charts from src/components/charts/Charts.tsx — no chart library; colors are `.viz-root` CSS vars in globals.css, validated for colorblind separation + contrast on the card surfaces in both themes)
   compare/page.tsx                   public: cross-kingdom power/KP/DKP comparison
-  governor/[governorId]/             public: one governor's row from every KvK menu (any kingdom), via getGovernorHistory (data.ts) — player names in both stats tables link here
+  governor/[governorId]/             public: one governor's row from every KvK menu (any kingdom), via getGovernorHistory (data.ts) — player names in both stats tables link here. Also per-KvK charts (?kvk=<menuId>, default newest) from getGovernorBreakdown: rank/percentile tiles, player vs median-of-those-who-fought vs top-10 average, DKP by formula term, kills/dead by tier, DKP-per-KvK trend once there are ≥2 KvKs
   login/                             hidden (no nav link) — admin-only sign-in
   admin/                             protected by middleware
     page.tsx + AdminMenusClient.tsx  create/update/delete KvK menus (kingdom 2000 only)

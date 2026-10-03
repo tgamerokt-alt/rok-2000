@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getGovernorHistory } from "@/lib/data";
+import { getGovernorBreakdown, getGovernorHistory } from "@/lib/data";
 import { getDictionary } from "@/lib/i18n/locale";
 import { formatTemplate } from "@/lib/i18n/dictionaries";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { Card } from "@/components/ui/Card";
+import GovernorCharts from "./GovernorCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,27 @@ function fmtSigned(n: number) {
 }
 
 /** One governor's results across every KvK menu (any kingdom) they appear in. */
-export default async function GovernorPage({ params }: { params: Promise<{ governorId: string }> }) {
-  const { governorId } = await params;
-  const [history, { t }] = await Promise.all([getGovernorHistory(decodeURIComponent(governorId)), getDictionary()]);
+export default async function GovernorPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ governorId: string }>;
+  searchParams: Promise<{ kvk?: string | string[] }>;
+}) {
+  const [{ governorId: rawId }, { kvk }] = await Promise.all([params, searchParams]);
+  const governorId = decodeURIComponent(rawId);
+  const [history, { t }] = await Promise.all([getGovernorHistory(governorId), getDictionary()]);
+
+  // Per-KvK charts show one KvK at a time: ?kvk=<menuId>, else the newest one.
+  const requestedKvk = Array.isArray(kvk) ? kvk[0] : kvk;
+  const selected = history.find((h) => h.menu.id === requestedKvk) ?? history[0];
+  const breakdown = selected ? await getGovernorBreakdown(selected.menu, governorId) : null;
+  const trend = [...history].reverse().map((h) => ({
+    key: h.menu.id,
+    label: h.menu.name,
+    dkp: h.member.dkp,
+    incomplete: h.member.incomplete,
+  }));
 
   const name = history[0]?.member.name ?? governorId;
   const complete = history.filter((h) => !h.member.incomplete);
@@ -68,8 +87,30 @@ export default async function GovernorPage({ params }: { params: Promise<{ gover
               ))}
             </div>
 
+            {history.length > 1 && (
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-500 dark:text-slate-400">{t.governor.pickKvk}</span>
+                {history.map((h) => (
+                  <Link
+                    key={h.menu.id}
+                    href={`/governor/${encodeURIComponent(governorId)}?kvk=${h.menu.id}`}
+                    scroll={false}
+                    className={
+                      h.menu.id === selected.menu.id
+                        ? "rounded-md bg-amber-500 px-3 py-1 text-xs font-semibold text-slate-950"
+                        : "rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    }
+                  >
+                    {h.menu.name}
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <GovernorCharts breakdown={breakdown} kvkName={selected.menu.name} trend={trend} t={t} />
+
             <Card className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full whitespace-nowrap text-sm">
                 <thead className="bg-slate-100 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
                   <tr>
                     <th className="px-3 py-2 text-left">{t.governor.kvk}</th>
@@ -87,7 +128,7 @@ export default async function GovernorPage({ params }: { params: Promise<{ gover
                     const dash = member.incomplete;
                     return (
                       <tr key={menu.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                        <td className="px-3 py-2">
+                        <td className="whitespace-nowrap px-3 py-2">
                           <Link
                             href={`/dashboard/${menu.id}`}
                             className="font-medium text-slate-900 hover:text-amber-600 dark:text-white dark:hover:text-amber-400"

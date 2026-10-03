@@ -5,3 +5,29 @@
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Chart tokens (src/components/charts). Series/negative hues validated for
+ * CVD separation + >=3:1 contrast against the card surfaces they render on
+ * (white / slate-900) — re-run the validator if you change them. */
+.viz-root {
+  --viz-series-1: #2a78d6;
+  --viz-negative: #e34948;
+  --viz-area: rgb(42 120 214 / 0.1);
+  --viz-muted-mark: #cbd5e1;
+  --viz-grid: #eef2f6;
+  --viz-axis: #cbd5e1;
+  --viz-text: #334155;
+  --viz-text-muted: #64748b;
+  --viz-surface: #ffffff;
+}
+.dark .viz-root {
+  --viz-series-1: #3987e5;
+  --viz-negative: #e66767;
+  --viz-area: rgb(57 135 229 / 0.12);
+  --viz-muted-mark: #475569;
+  --viz-grid: #1e293b;
+  --viz-axis: #334155;
+  --viz-text: #cbd5e1;
+  --viz-text-muted: #94a3b8;
+  --viz-surface: #0f172a;
+}
