@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getGovernorBreakdown, getGovernorHistory, getTargets } from "@/lib/data";
+import { getGovernorBreakdown, getGovernorHistory, getNameHistory, getTargets } from "@/lib/data";
 import { evaluateTarget } from "@/lib/targets";
 import { getDictionary } from "@/lib/i18n/locale";
 import { formatTemplate } from "@/lib/i18n/dictionaries";
@@ -28,7 +28,11 @@ export default async function GovernorPage({
 }) {
   const [{ governorId: rawId }, { kvk }] = await Promise.all([params, searchParams]);
   const governorId = decodeURIComponent(rawId);
-  const [history, { t }] = await Promise.all([getGovernorHistory(governorId), getDictionary()]);
+  const [history, names, { t }] = await Promise.all([
+    getGovernorHistory(governorId),
+    getNameHistory(governorId),
+    getDictionary(),
+  ]);
 
   // Per-KvK charts show one KvK at a time: ?kvk=<menuId>, else the newest one.
   const requestedKvk = Array.isArray(kvk) ? kvk[0] : kvk;
@@ -100,6 +104,33 @@ export default async function GovernorPage({
                 </Card>
               ))}
             </div>
+
+            {names.length > 1 ? (
+              <Card className="mb-6 p-4">
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">{t.governor.namesTitle}</h2>
+                <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">{t.governor.namesSub}</p>
+                <ol className="flex flex-wrap items-center gap-2 text-sm">
+                  {names.map((n, i) => (
+                    <li key={`${n.name}-${n.from}`} className="flex items-center gap-2">
+                      {i > 0 && <span aria-hidden className="text-slate-400">→</span>}
+                      <span className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-700">
+                        <span className="font-semibold text-slate-900 dark:text-white">{n.name}</span>
+                        <span className="ml-2 text-[11px] text-slate-500">
+                          {n.from === n.to ? n.from : `${n.from} – ${n.to}`}
+                          {i === names.length - 1 && ` · ${t.governor.nameCurrent}`}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </Card>
+            ) : (
+              names.length === 1 && (
+                <p className="-mt-3 mb-4 text-xs text-slate-500 dark:text-slate-400">
+                  {formatTemplate(t.governor.nameSingle, { from: names[0].from })}
+                </p>
+              )
+            )}
 
             {history.length > 1 && (
               <div className="mb-4 flex flex-wrap items-center gap-2">

@@ -35,35 +35,39 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: s
   );
 }
 
-/** A meter per requirement: fill = this player's value, track = the target (same-ramp lighter step). */
+const METRIC_ICON = { kills: "⚔", dead: "💀", dkp: "🏆" } as const;
+
+/**
+ * One row per requirement (kills / dead / DKP), each with its own pass/fail,
+ * then the overall result: met only when every required row is met.
+ * Meter: fill = this player's value, track = the target (same-ramp lighter step).
+ */
 function TargetCard({ target, t }: { target: TargetResult; t: Dictionary }) {
   const g = t.governor;
-  const metricLabel = { kills: t.kvkSummary.kp, dead: t.kvkSummary.deadT4T5, dkp: t.kvkSummary.dkp };
+  const passed = target.parts.filter((p) => p.value >= p.target).length;
   return (
     <ChartCard
       title={g.targetTitle}
       subtitle={formatTemplate(g.targetSub, { bracket: fmtCompact(target.minPower) })}
     >
-      <div
-        className={`mb-3 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-semibold ${
-          target.met
-            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-            : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400"
-        }`}
-      >
-        <span aria-hidden>{target.met ? "✓" : "✗"}</span>
-        {target.met ? g.targetMet : formatTemplate(g.targetMissed, { pct: fmtPct(target.progress) })}
-      </div>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         {target.parts.map((p) => {
           const ratio = p.value / p.target;
+          const ok = ratio >= 1;
           return (
             <div key={p.metric}>
-              <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
-                <span className="font-semibold text-slate-600 dark:text-slate-300">{metricLabel[p.metric]}</span>
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 text-xs">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  <span aria-hidden className="mr-1">{METRIC_ICON[p.metric]}</span>
+                  {t.targets.metricColumn[p.metric]}
+                </span>
                 <span className="tabular-nums text-slate-500 dark:text-slate-400">
-                  <span className="font-semibold text-slate-900 dark:text-white">{fmtCompact(p.value)}</span> /{" "}
-                  {fmtCompact(p.target)} · {fmtPct(ratio)} {ratio >= 1 ? "✓" : ""}
+                  <span className="font-semibold text-slate-900 dark:text-white">{fmtCompact(p.value)}</span>
+                  {" / "}
+                  {fmtCompact(p.target)} · {fmtPct(ratio)}{" "}
+                  <span className={ok ? "font-semibold text-emerald-600 dark:text-emerald-400" : "font-semibold text-red-600 dark:text-red-400"}>
+                    {ok ? `✓ ${g.partPassed}` : `✗ ${g.partMissed}`}
+                  </span>
                 </span>
               </div>
               <div className="h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--viz-muted-mark)" }}>
@@ -75,6 +79,19 @@ function TargetCard({ target, t }: { target: TargetResult; t: Dictionary }) {
             </div>
           );
         })}
+
+        <div
+          className={`flex flex-wrap items-center gap-2 rounded-md border-t border-slate-200 pt-3 text-sm font-semibold dark:border-slate-700 ${
+            target.met ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"
+          }`}
+        >
+          <span className="text-slate-600 dark:text-slate-300">{t.targets.column}:</span>
+          <span aria-hidden>{target.met ? "✓" : "✗"}</span>
+          {formatTemplate(target.met ? g.targetMet : g.targetMissed, {
+            passed: String(passed),
+            n: String(target.parts.length),
+          })}
+        </div>
       </div>
     </ChartCard>
   );

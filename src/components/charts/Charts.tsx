@@ -14,22 +14,13 @@ import { ReactNode, useEffect, useRef, useState } from "react";
  * without it via direct labels or the dashboard's table.
  */
 
-export function fmtCompact(n: number) {
-  const abs = Math.abs(n);
-  const sign = n < 0 ? "-" : "";
-  if (abs >= 1e9) return `${sign}${(abs / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `${sign}${(abs / 1e6).toFixed(1)}M`;
-  if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}K`;
-  return `${sign}${Math.round(abs).toLocaleString("en-US")}`;
-}
-
-export function fmtPct(fraction: number, digits = 0) {
-  return `${(fraction * 100).toFixed(digits)}%`;
-}
+// Number formatters live in a plain module so server components can use them too.
+export { fmtCompact, fmtPct } from "@/lib/format";
+import { fmtCompact, fmtPct } from "@/lib/format";
 
 /** Approximate rendered width in characters: Thai vowel/tone marks stack on the base letter and take no width. */
 function visualLength(text: string) {
-  return text.replace(/[ัิ-ฺ็-๎]/g, "").length;
+  return text.replace(/[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g, "").length;
 }
 
 /** Truncate to a visual length, never splitting a base letter from its marks. */
@@ -257,7 +248,8 @@ export function GroupedHBarChart({ items }: { items: GroupedBarItem[] }) {
   const groupH = series * barH + (series - 1) * gap + groupPad;
   const longest = Math.max(...items.map((i) => visualLength(i.label)), 4);
   const labelW = Math.min(width * 0.38, 140, Math.max(48, longest * 7 + 12));
-  const valueW = 64;
+  // Room for the longest value label past the bar end (~6.5px/char at 11px).
+  const valueW = Math.max(64, ...items.flatMap((i) => i.values.map((v) => v.valueLabel.length * 6.5 + 12)));
   const plotW = Math.max(10, width - labelW - valueW);
   const max = Math.max(1, ...items.flatMap((i) => i.values.map((v) => v.value)));
 

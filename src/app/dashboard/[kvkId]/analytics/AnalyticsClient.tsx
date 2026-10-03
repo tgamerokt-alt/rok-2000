@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { ScoredMember } from "@/lib/dkp";
 import { KvkMenu, TargetBracket } from "@/lib/types";
-import { evaluateTarget, TargetResult } from "@/lib/targets";
+import { activeMetrics, evaluateTarget, partOf, TargetMetric, TargetResult } from "@/lib/targets";
 import { Dictionary, formatTemplate } from "@/lib/i18n/dictionaries";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { Card } from "@/components/ui/Card";
+import { ShareImageButtons } from "@/components/ShareImageButtons";
 import {
   BarItem,
   ChartCard,
@@ -15,6 +16,8 @@ import {
   ColumnItem,
   CumulativeChart,
   fmtCompact,
+  GroupedBarItem,
+  GroupedHBarChart,
   fmtPct,
   HBarChart,
   ScatterChart,
@@ -26,6 +29,13 @@ import {
 const SERIES = "var(--viz-series-1)";
 const NEGATIVE = "var(--viz-negative)";
 const MUTED = "var(--viz-muted-mark)";
+/** Fixed series order for target requirements — color follows the requirement, never its position. */
+const METRIC_COLOR: Record<TargetMetric, string> = {
+  kills: "var(--viz-series-1)",
+  dead: "var(--viz-series-2)",
+  dkp: "var(--viz-series-3)",
+};
+const METRIC_ICON: Record<TargetMetric, string> = { kills: "⚔", dead: "💀", dkp: "🏆" };
 
 /** Below this starting power, DKP-per-power is dominated by noise (tiny accounts). */
 const EFFICIENCY_MIN_POWER = 10_000_000;
@@ -235,6 +245,41 @@ export default function AnalyticsClient({
     const met = inGroup.filter((r) => r.met).length;
     return { min, total: inGroup.length, met };
   });
+  // Each requirement judged on its own: of the players it applies to, how many reached it.
+  const metrics = activeMetrics(targets);
+  const metricPass = (results: TargetResult[], metric: TargetMetric) => {
+    const parts = results.map((r) => partOf(r, metric)).filter((p) => p !== null);
+    return { total: parts.length, met: parts.filter((p) => p.value >= p.target).length };
+  };
+  const metricTotals = metrics.map((metric) => ({ metric, ...metricPass(evaluated, metric) }));
+  const byRequirementItems: GroupedBarItem[] = targetGroups.map((g) => {
+    const inGroup = evaluated.filter((r) => r.minPower === g.min);
+    const label = `${fmtCompact(g.min)}+`;
+    const stats = metrics.map((metric) => ({ metric, ...metricPass(inGroup, metric) }));
+    return {
+      key: String(g.min),
+      label,
+      values: stats.map((st) => ({
+        value: st.total ? (st.met / st.total) * 100 : 0,
+        valueLabel: st.total ? `${fmtPct(st.met / st.total)} (${st.met}/${st.total})` : "—",
+        color: METRIC_COLOR[st.metric],
+      })),
+      tooltip: (
+        <>
+          <TipTitle>{formatTemplate(a.targetBracketTip, { bracket: label })}</TipTitle>
+          {stats.map((st) => (
+            <TipRow
+              key={st.metric}
+              color={METRIC_COLOR[st.metric]}
+              label={t.targets.metricColumn[st.metric]}
+              value={st.total ? `${st.met} / ${st.total}` : "—"}
+            />
+          ))}
+        </>
+      ),
+    };
+  });
+
   const targetItems: ColumnItem[] = targetGroups.map((g) => {
     const label = `${fmtCompact(g.min)}+`;
     return {
@@ -262,6 +307,14 @@ export default function AnalyticsClient({
         n: evaluated.length.toLocaleString("en-US"),
         pct: fmtPct(metCount / evaluated.length),
       }),
+    evaluated.length > 0 &&
+      metricTotals
+        .map((mt) => `${METRIC_ICON[mt.metric]} ${formatTemplate(a.insightMetric, {
+          label: t.targets.metricColumn[mt.metric],
+          met: String(mt.met),
+          n: String(mt.total),
+        })}`)
+        .join(" · "),
     formatTemplate(a.insightTop10, { share: fmtPct(top10Share) }),
     formatTemplate(a.insightTop20, { share: fmtPct(at20.y) }),
     efficiency[0] &&
@@ -271,10 +324,36 @@ export default function AnalyticsClient({
     idle > 0 && formatTemplate(a.insightIdle, { n: idle.toLocaleString("en-US"), pct: fmtPct(idle / complete.length) }),
   ].filter(Boolean) as string[];
 
+  const shareStats = [
+    { label: a.totalDkpLbl, value: fmtCompact(totalDkp) },
+    { label: a.kpiParticipation, value: `${fmtPct(participation)} (${participants.length}/${complete.length})` },
+    evaluated.length > 0
+      ? { label: t.targets.column, value: `${metCount}/${evaluated.length} (${fmtPct(metCount / evaluated.length)})` }
+      : { label: t.kvkSummary.kp, value: fmtCompact(complete.reduce((s, m) => s + m.kp_t4t5, 0)) },
+    { label: t.kvkSummary.deadT4T5, value: fmtCompact(complete.reduce((s, m) => s + m.dead_t4t5, 0)) },
+  ];
+
   return (
     <main className="flex-1">
       <PageContainer maxWidth="max-w-none">
         {header}
+
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <span className="text-xs text-slate-500 dark:text-slate-400">{a.shareHint}</span>
+          <ShareImageButtons
+            fileName={`kvk-${menu.kingdomId}-${menu.startDate}-summary.png`}
+            labels={{ download: a.shareDownload, copy: a.shareCopy, copied: a.shareCopied, copyFailed: a.shareCopyFailed }}
+            data={{
+              siteTitle: t.common.siteTitle,
+              heading: `${menu.name} · ${t.common.kingdom} ${menu.kingdomId}`,
+              subheading: `${menu.startDate} — ${menu.endDate} · ${complete.length} ${t.dashboard.players}`,
+              stats: shareStats,
+              topTitle: a.shareTopTitle,
+              top: top10.map((m) => ({ name: m.name, value: m.dkp })),
+              footer: formatTemplate(a.shareFooter, { date: new Date().toISOString().slice(0, 10) }),
+            }}
+          />
+        </div>
 
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Kpi
@@ -309,17 +388,43 @@ export default function AnalyticsClient({
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {evaluated.length > 0 && (
-            <div className="xl:col-span-2">
-              <ChartCard
-                title={formatTemplate(a.targetTitle, {
-                  met: metCount.toLocaleString("en-US"),
-                  n: evaluated.length.toLocaleString("en-US"),
-                })}
-                subtitle={a.targetSub}
-              >
-                <ColumnChart items={targetItems} formatTick={(n) => `${Math.round(n)}%`} />
-              </ChartCard>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:col-span-2">
+              {metricTotals.map((mt) => (
+                <Kpi
+                  key={mt.metric}
+                  label={`${METRIC_ICON[mt.metric]} ${t.targets.metricColumn[mt.metric]}`}
+                  value={`${mt.met} / ${mt.total}`}
+                  sub={formatTemplate(a.kpiMetricSub, { pct: fmtPct(mt.total ? mt.met / mt.total : 0) })}
+                />
+              ))}
+              <Kpi
+                label={`✓ ${t.targets.column}`}
+                value={`${metCount} / ${evaluated.length}`}
+                sub={formatTemplate(a.kpiOverallSub, { pct: fmtPct(metCount / evaluated.length) })}
+              />
             </div>
+          )}
+
+          {evaluated.length > 0 && (
+            <ChartCard
+              title={a.targetByReqTitle}
+              subtitle={a.targetByReqSub}
+              legend={metrics.map((m) => ({ color: METRIC_COLOR[m], label: t.targets.metricColumn[m], shape: "rect" as const }))}
+            >
+              <GroupedHBarChart items={byRequirementItems} />
+            </ChartCard>
+          )}
+
+          {evaluated.length > 0 && (
+            <ChartCard
+              title={formatTemplate(a.targetTitle, {
+                met: metCount.toLocaleString("en-US"),
+                n: evaluated.length.toLocaleString("en-US"),
+              })}
+              subtitle={a.targetSub}
+            >
+              <ColumnChart items={targetItems} formatTick={(n) => `${Math.round(n)}%`} />
+            </ChartCard>
           )}
 
           <ChartCard title={a.topDkpTitle} subtitle={a.topDkpSub}>

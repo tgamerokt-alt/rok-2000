@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { readDbSnapshot } from "./db";
 import { kvkFileName } from "./storage";
 import { readBlobFile } from "./blobStorage";
@@ -20,16 +21,24 @@ export async function getKvkMenu(menuId: string): Promise<KvkMenu | null> {
   return db.kvkMenus.find((m) => m.id === menuId) || null;
 }
 
+/**
+ * One parsed snapshot file, memoized for the duration of a single server
+ * render (React `cache`) — several helpers on one page (scores, name
+ * history, …) read the same files, and each Blob read is a network round trip.
+ */
+const readSnapshot = cache(async (kingdomId: string, fileName: string): Promise<MemberStat[] | null> => {
+  const buffer = await readBlobFile(kvkFileName(kingdomId, fileName));
+  return buffer ? (JSON.parse(buffer.toString("utf8")) as MemberStat[]) : null;
+});
+
 export async function getScoredMembers(menu: KvkMenu) {
-  const [beforeBuffer, afterBuffer] = await Promise.all([
-    readBlobFile(kvkFileName(menu.kingdomId, menu.beforeFileName)),
-    readBlobFile(kvkFileName(menu.kingdomId, menu.afterFileName)),
+  const [before, after] = await Promise.all([
+    readSnapshot(menu.kingdomId, menu.beforeFileName),
+    readSnapshot(menu.kingdomId, menu.afterFileName),
   ]);
-  if (!beforeBuffer || !afterBuffer) {
+  if (!before || !after) {
     throw new Error(`Missing snapshot file(s) in Blob store for KvK menu ${menu.id}`);
   }
-  const before = JSON.parse(beforeBuffer.toString("utf8")) as MemberStat[];
-  const after = JSON.parse(afterBuffer.toString("utf8")) as MemberStat[];
   const delta = diffSnapshots(before, after);
   const formula = await getFormula(menu.kingdomId);
   return scoreMembers(delta, formula);
@@ -174,4 +183,46 @@ export async function getGovernorBreakdown(menu: KvkMenu, governorId: string): P
 export async function getTargets(kingdomId: string): Promise<TargetBracket[]> {
   const db = await readDbSnapshot();
   return db.targets[kingdomId] ?? [];
+}
+
+export interface NameSpan {
+  name: string;
+  /** First / last snapshot date this name was seen on (YYYY-MM-DD). */
+  from: string;
+  to: string;
+}
+
+/**
+ * A governor's in-game names over time, from every snapshot they appear in
+ * (start + end file of every KvK menu, any kingdom). Governor ID never
+ * changes, names can — consecutive identical names collapse into one span.
+ */
+export async function getNameHistory(governorId: string): Promise<NameSpan[]> {
+  const menus = await listKvkMenus();
+  const sightings = (
+    await Promise.all(
+      menus.flatMap((m) =>
+        (
+          [
+            [m.beforeFileName, m.startDate],
+            [m.afterFileName, m.endDate],
+          ] as const
+        ).map(async ([file, date]) => {
+          const rows = await readSnapshot(m.kingdomId, file).catch(() => null);
+          const row = rows?.find((r) => r.governor_id === governorId);
+          return row ? { name: row.name, date } : null;
+        })
+      )
+    )
+  )
+    .filter((x): x is { name: string; date: string } => x !== null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const spans: NameSpan[] = [];
+  for (const s of sightings) {
+    const last = spans[spans.length - 1];
+    if (last && last.name === s.name) last.to = s.date;
+    else spans.push({ name: s.name, from: s.date, to: s.date });
+  }
+  return spans;
 }

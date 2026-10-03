@@ -9,6 +9,9 @@ export interface DiffedStat extends MemberStat {
    * (joined mid-KvK, or left before the "after" export was taken) — every
    * stat field is zeroed and the UI should render the row as dashes. */
   incomplete: boolean;
+  /** The name in the *before* snapshot, only when it differs from the current
+   * (after) name — i.e. the governor renamed during the KvK. */
+  previous_name?: string;
 }
 
 export interface ScoredMember extends DiffedStat {
@@ -135,6 +138,7 @@ export function diffSnapshots(before: MemberStat[], after: MemberStat[]): Diffed
     }
 
     const delta: DiffedStat = { ...a, power_start: b.power, incomplete: false };
+    if (b.name !== a.name) delta.previous_name = b.name;
     for (const field of CUMULATIVE_FIELDS) {
       delta[field] = Math.max(0, a[field] - b[field]);
     }

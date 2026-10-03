@@ -208,15 +208,18 @@ function AddTeamForm({
   locale: Locale;
   t: Dictionary;
 }) {
-  const [state, formAction, pending] = useActionState(addCampaignTeamAction, initialState);
   const presets = CAMPAIGN_CAMP_PRESETS[locale];
   // ComboBoxInput is a controlled input, so React's automatic form-reset-after-action
   // (which only applies to uncontrolled fields) doesn't clear it — remount it instead.
   const [resetKey, setResetKey] = useState(0);
+  const [state, formAction, pending] = useActionState(async (prev: ActionState, formData: FormData) => {
+    const result = await addCampaignTeamAction(prev, formData);
+    if (result.success) setResetKey((k) => k + 1);
+    return result;
+  }, initialState);
 
   useEffect(() => {
     if (state.error) notifyResult({ success: false, message: state.error });
-    else if (state.success) setResetKey((k) => k + 1);
   }, [state]);
 
   return (
@@ -244,8 +247,12 @@ function AddTeamForm({
 function AddKingdomForm({ campaignId, teamId, t }: { campaignId: string; teamId: string; t: Dictionary }) {
   const [mode, setMode] = useState<"manual" | "auto">("manual");
   const [manualState, manualAction, manualPending] = useActionState(addCampaignKingdomAction, initialState);
-  const [autoState, autoAction, autoPending] = useActionState(addCampaignKingdomsFromJsonAction, initialState);
   const [autoResetKey, setAutoResetKey] = useState(0);
+  const [autoState, autoAction, autoPending] = useActionState(async (prev: ActionState, formData: FormData) => {
+    const result = await addCampaignKingdomsFromJsonAction(prev, formData);
+    if (result.success) setAutoResetKey((k) => k + 1);
+    return result;
+  }, initialState);
 
   useEffect(() => {
     if (manualState.error) notifyResult({ success: false, message: manualState.error });
@@ -253,10 +260,7 @@ function AddKingdomForm({ campaignId, teamId, t }: { campaignId: string; teamId:
 
   useEffect(() => {
     if (autoState.error) notifyResult({ success: false, message: autoState.error });
-    else if (autoState.success) {
-      notifyResult({ success: true, message: t.admin.campaigns.bulkImportSuccess });
-      setAutoResetKey((k) => k + 1);
-    }
+    else if (autoState.success) notifyResult({ success: true, message: t.admin.campaigns.bulkImportSuccess });
   }, [autoState, t]);
 
   const radioName = `addKingdomMode-${teamId}`;

@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ScoredMember } from "@/lib/dkp";
 import { KvkMenu, TargetBracket } from "@/lib/types";
-import { evaluateTarget } from "@/lib/targets";
-import { Dictionary } from "@/lib/i18n/dictionaries";
+import { activeMetrics, evaluateTarget, partOf, TargetMetric } from "@/lib/targets";
+import { Dictionary, formatTemplate } from "@/lib/i18n/dictionaries";
 import { downloadCsv } from "@/lib/csv";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageContainer } from "@/components/ui/PageContainer";
@@ -31,7 +31,10 @@ type SortKey =
   | "dead_t4t5"
   | "dead_total"
   | "dkp"
-  | "target";
+  | "target"
+  | "target_kills"
+  | "target_dead"
+  | "target_dkp";
 
 function fmt(n: number) {
   const abs = Math.abs(n);
@@ -72,7 +75,8 @@ export default function DashboardClient({
   targets: TargetBracket[];
   t: Dictionary;
 }) {
-  const [targetFilter, setTargetFilter] = useState<"all" | "met" | "missed">("all");
+  const [targetFilter, setTargetFilter] = useState<"all" | "met" | "missed" | `missed_${TargetMetric}`>("all");
+  const metrics = activeMetrics(targets);
   const targetById = useMemo(
     () => new Map(members.map((m) => [m.governor_id, evaluateTarget(m, targets)])),
     [members, targets]
@@ -178,25 +182,58 @@ export default function DashboardClient({
   ];
 
   if (targets.length > 0) {
-    const pct = (m: ScoredMember) => {
-      const r = targetById.get(m.governor_id);
-      return r ? `${Math.round(r.progress * 100)}%` : "-";
-    };
-    columns.push({
+    // Status is never color-alone: ✓ / ✗ ride along with every percentage.
+    const statusClass = (ok: boolean | null) =>
+      ok === null
+        ? "text-slate-400"
+        : ok
+          ? "whitespace-nowrap font-semibold text-emerald-600 dark:text-emerald-400"
+          : "whitespace-nowrap font-semibold text-red-600 dark:text-red-400";
+    const pctText = (ratio: number) => `${Math.round(ratio * 100)}%`;
+
+    // One column per requirement (kills / dead / DKP), each judged on its own…
+    const perMetric: ColumnDef[] = metrics.map((metric) => ({
+      key: `target_${metric}` as SortKey,
+      label: t.targets.metricColumn[metric],
+      cellClassName: (m) => {
+        const p = partOf(targetById.get(m.governor_id), metric);
+        return statusClass(p ? p.value >= p.target : null);
+      },
+      // "—" = this player's bracket doesn't require this one; "-" = no target at all.
+      render: (m) => {
+        const r = targetById.get(m.governor_id);
+        const p = partOf(r, metric);
+        if (!p) return r ? "—" : "-";
+        return `${p.value >= p.target ? "✓" : "✗"} ${pctText(p.value / p.target)}`;
+      },
+      csv: (m) => {
+        const p = partOf(targetById.get(m.governor_id), metric);
+        return p ? pctText(p.value / p.target) : "-";
+      },
+    }));
+
+    // …then the overall result: met only when every required one is met.
+    const overall: ColumnDef = {
       key: "target",
       label: t.targets.column,
       cellClassName: (m) => {
         const r = targetById.get(m.governor_id);
-        if (!r) return "text-slate-400";
-        return r.met ? "font-semibold text-emerald-600 dark:text-emerald-400" : "font-semibold text-red-600 dark:text-red-400";
+        return statusClass(r ? r.met : null);
       },
-      // Status is never color-alone: ✓ / ✗ ride along with the percentage.
       render: (m) => {
         const r = targetById.get(m.governor_id);
-        return r ? `${r.met ? "✓" : "✗"} ${pct(m)}` : "-";
+        if (!r) return "-";
+        const passed = r.parts.filter((p) => p.value >= p.target).length;
+        return `${r.met ? "✓" : "✗"} ${passed}/${r.parts.length}`;
       },
-      csv: (m) => pct(m),
-    });
+      csv: (m) => {
+        const r = targetById.get(m.governor_id);
+        return r ? (r.met ? t.targets.csvMet : t.targets.csvMissed) : "-";
+      },
+    };
+
+    // First stat columns, so "why did they miss?" is visible without scrolling the wide table.
+    columns.unshift(overall, ...perMetric);
   }
 
   const visibleColumns = columns.filter((c) => !hiddenCols.has(c.key));
@@ -222,7 +259,9 @@ export default function DashboardClient({
     const q = search.trim().toLowerCase();
     const searched = q
       ? members.filter(
-          (m) => m.name.toLowerCase().includes(q) || m.governor_id.includes(q)
+          (m) => m.name.toLowerCase().includes(q) ||
+            m.previous_name?.toLowerCase().includes(q) ||
+            m.governor_id.includes(q)
         )
       : members;
     const rows =
@@ -230,12 +269,22 @@ export default function DashboardClient({
         ? searched
         : searched.filter((m) => {
             const r = targetById.get(m.governor_id);
-            return r !== null && r !== undefined && (targetFilter === "met" ? r.met : !r.met);
+            if (!r) return false;
+            if (targetFilter === "met") return r.met;
+            if (targetFilter === "missed") return !r.met;
+            const p = partOf(r, targetFilter.slice("missed_".length) as TargetMetric);
+            return p !== null && p.value < p.target;
           });
 
-    // "target" isn't a member field — sort by progress, with no-requirement rows last.
-    const valueOf = (m: ScoredMember) =>
-      sortKey === "target" ? (targetById.get(m.governor_id)?.progress ?? -1) : m[sortKey];
+    // Target columns aren't member fields — sort by progress ratio, with no-requirement rows last.
+    const valueOf = (m: ScoredMember) => {
+      if (sortKey === "target") return targetById.get(m.governor_id)?.progress ?? -1;
+      if (sortKey.startsWith("target_")) {
+        const p = partOf(targetById.get(m.governor_id), sortKey.slice("target_".length) as TargetMetric);
+        return p ? p.value / p.target : -1;
+      }
+      return m[sortKey as keyof ScoredMember];
+    };
     return [...rows].sort((a, b) => {
       const av = valueOf(a);
       const bv = valueOf(b);
@@ -311,6 +360,12 @@ export default function DashboardClient({
                 {t.analytics.open}
               </Link>
               <Link
+                href={`/dashboard/${menu.id}/watchlist`}
+                className="rounded-md border border-amber-400 px-3 py-1.5 text-sm font-semibold text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950"
+              >
+                {t.watchlist.open}
+              </Link>
+              <Link
                 href={`/kingdom/${menu.kingdomId}`}
                 className="text-sm text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400"
               >
@@ -362,6 +417,11 @@ export default function DashboardClient({
               <option value="all">{t.targets.filterAll}</option>
               <option value="met">{t.targets.filterMet}</option>
               <option value="missed">{t.targets.filterMissed}</option>
+              {metrics.map((metric) => (
+                <option key={metric} value={`missed_${metric}`}>
+                  {t.targets.filterMissedMetric[metric]}
+                </option>
+              ))}
             </select>
           )}
           <div className="ml-auto flex items-center gap-2">
@@ -435,6 +495,9 @@ export default function DashboardClient({
                     <Link href={`/governor/${m.governor_id}`} className="hover:text-amber-600 dark:hover:text-amber-400">
                       {m.name}
                     </Link>
+                    {m.previous_name && (
+                      <div className="text-[11px] italic text-slate-500">{formatTemplate(t.common.formerly, { name: m.previous_name })}</div>
+                    )}
                     <div className="text-[11px] text-slate-500">{m.governor_id}</div>
                   </td>
                   {visibleColumns.map((col) => (
@@ -473,6 +536,9 @@ export default function DashboardClient({
                     >
                       {m.name}
                     </Link>
+                    {m.previous_name && (
+                      <div className="text-[11px] italic text-slate-500">{formatTemplate(t.common.formerly, { name: m.previous_name })}</div>
+                    )}
                     <div className="text-[11px] text-slate-500">{m.governor_id}</div>
                   </div>
                 </div>

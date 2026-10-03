@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ScoredMember } from "@/lib/dkp";
 import { DkpFormula, KvkMenu, TargetBracket } from "@/lib/types";
-import { evaluateTarget } from "@/lib/targets";
+import { activeMetrics, evaluateTarget, partOf } from "@/lib/targets";
 import { Dictionary, formatTemplate } from "@/lib/i18n/dictionaries";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageContainer } from "@/components/ui/PageContainer";
@@ -57,7 +57,7 @@ function PlayerPicker({
 
   const q = query.trim().toLowerCase();
   const matches = (q
-    ? members.filter((m) => m.name.toLowerCase().includes(q) || m.governor_id.includes(q))
+    ? members.filter((m) => m.name.toLowerCase().includes(q) || m.previous_name?.toLowerCase().includes(q) || m.governor_id.includes(q))
     : [...members].sort((x, y) => y.dkp - x.dkp)
   ).slice(0, 8);
 
@@ -245,12 +245,26 @@ export default function PlayerCompareClient({
       { label: c.dkpPerM, va: perM(a), vb: perM(b), fmt: (n) => fmtCompact(n), higherBetter: true },
       { label: c.killsPerDead, va: kd(a), vb: kd(b), fmt: (n) => n.toFixed(2), higherBetter: true },
     ];
-    if (ta || tb) {
+    // Each requirement on its own row, then the overall result (share of requirements passed).
+    for (const metric of activeMetrics(targets)) {
+      const pa = partOf(ta, metric);
+      const pb = partOf(tb, metric);
+      if (!pa && !pb) continue;
       tableRows.push({
-        label: t.targets.column,
-        va: ta?.progress ?? 0,
-        vb: tb?.progress ?? 0,
+        label: `${t.targets.column} · ${t.targets.metricColumn[metric]}`,
+        va: pa ? pa.value / pa.target : 0,
+        vb: pb ? pb.value / pb.target : 0,
         fmt: (n) => fmtPct(n),
+        higherBetter: true,
+      });
+    }
+    if (ta || tb) {
+      const passShare = (r: typeof ta) => (r ? r.parts.filter((p) => p.value >= p.target).length / r.parts.length : 0);
+      tableRows.push({
+        label: `${t.targets.column} · ${c.overall}`,
+        va: passShare(ta),
+        vb: passShare(tb),
+        fmt: (n) => (n >= 1 ? `✓ ${fmtPct(n)}` : `✗ ${fmtPct(n)}`),
         higherBetter: true,
       });
     }

@@ -92,7 +92,10 @@ src/lib/
     dictionaries.ts EN + TH strings, defaultLocale = "en"
     locale.ts       getLocale()/getDictionary() — reads the `locale` cookie
 
+src/lib/format.ts   fmtCompact / fmtPct — a plain (non-"use client") module so server components can call them; Charts.tsx re-exports them for client code. Never import a *function* from a "use client" file into a server component (runtime 500: "Attempted to call … from the server")
+
 src/components/
+  ShareImageButtons.tsx  analysis-page "download / copy summary image" — draws a 1080×1350 PNG on a canvas client-side (fixed dark look, Thai-capable system fonts)
   Sidebar.tsx       server component: builds nav items from session + dictionary, renders SidebarNav
   SidebarNav.tsx     client: the actual sidebar UI (icons, active-link highlight, mobile drawer, EN/ไทย toggle, logout)
   ui/                PageHeader / PageContainer / Card — shared layout primitives; SnapshotSlot + SnapshotArrow (co-located, see below) pair a date with the file it belongs to
@@ -101,10 +104,12 @@ src/middleware.ts   protects /admin/** — redirects to /login if no valid sessi
 
 src/app/
   page.tsx                          public home (kingdom 2000 card + first 8 other kingdoms with KvK menus)
-  kingdoms/page.tsx                  public: searchable list of every non-2000 kingdom with ≥1 KvK menu (single sidebar link, no per-kingdom nav items)
-  kingdom/[kingdomId]/page.tsx       public: list of KvK menus for a kingdom
+  kingdoms/page.tsx                  public: searchable list of every non-2000 kingdom with ≥1 uploaded KvK menu (single sidebar link, no per-kingdom nav items). Deliberately NOT the campaign-only kingdoms (typed-in stats) — the admin asked to keep this list to uploaded data
+  kingdom/[kingdomId]/page.tsx       public: list of KvK menus for a kingdom (uploaded KvK data only — the admin asked to keep campaign/typed-in stats off this page)
+  kingdom/[kingdomId]/compare/       public: KvK vs KvK for one kingdom (?a=&b=) — totals table with ▲/▼, roster in/new/gone, biggest DKP improvers/decliners
   kingdom/[kingdomId]/kvk/[kvkId]/   public: simple stats table
   dashboard/[kvkId]/                 public: full sortable/searchable dashboard (Statsmaster-style)
+  dashboard/[kvkId]/watchlist/       public: per-KvK watchlist — big accounts with 0 DKP, lost power + below-median DKP, failed this KvK's target, failed N KvKs in a row (streaks computed server-side over the kingdom's earlier KvKs); thresholds adjustable, CSV per list
   dashboard/[kvkId]/analytics/       public: per-KvK analysis (KPI row, written insights, 6 hand-rolled SVG charts from src/components/charts/Charts.tsx — no chart library; colors are `.viz-root` CSS vars in globals.css, validated for colorblind separation + contrast on the card surfaces in both themes)
   compare/page.tsx                   public: cross-kingdom power/KP/DKP comparison
   players/compare/                   public: two governors side by side within one KvK (?kvk=<menuId>&a=<id>&b=<id>, URL kept in sync for sharing) — player A = --viz-series-1 (blue), B = --viz-series-2 (orange); linked from each /governor page
@@ -114,7 +119,7 @@ src/app/
     page.tsx + AdminMenusClient.tsx  create/update/delete KvK menus (kingdom 2000 only)
     other-kingdoms/                  same AdminMenusClient for every kingdom except 2000 (?kingdom=<id> picks which one to view; the create form has a free-text Kingdom ID field — any numeric ID, known kingdoms are only suggestions)
     formula/                         DKP weight editor, per kingdom via ?kingdom=<id> (default 2000)
-    targets/                         KvK targets per kingdom (?kingdom=<id>): brackets by *starting* power, each with optional T4+T5 kills / T4+T5 dead / DKP minimums (0 = not required). Evaluated by evaluateTarget (src/lib/targets.ts, pure, used client+server) → dashboard Target column + met/missed filter, analysis-page chart, player-page meters
+    targets/                         KvK targets per kingdom (?kingdom=<id>): brackets by *starting* power, each with optional T4+T5 kills / T4+T5 dead / DKP minimums (0 = not required). Evaluated by evaluateTarget (src/lib/targets.ts, pure, used client+server) → shown everywhere as each requirement judged on its own (kill / dead / DKP target, ✓/✗ + %) *plus* an overall result (passed only when every required one is met): dashboard columns + filters (overall and per requirement), analysis-page KPIs + by-requirement and overall charts, player-page card. Keep the per-requirement and overall views separate — the admin explicitly asked for that
     backups/                         lists + restores db.json backups (see Storage)
     kingdoms/                        multi-kingdom groups + per-kingdom snapshot upload
 
@@ -181,6 +186,13 @@ diff against — their row is still included (using whichever snapshot has
 their name), but every stat field is zeroed and `incomplete: true` is set on
 `DiffedStat`, which the UI tables (`DashboardClient.tsx`,
 `KvkSummaryClient.tsx`) render as `-` instead of a misleading `0`.
+Renames: Governor ID never changes but the in-game name can — when the
+before/after names differ, `diffSnapshots` sets `previous_name` (searched by
+every player search box, shown as "(formerly: …)" in the stats tables), and
+`getNameHistory` (`data.ts`) builds a name timeline across every snapshot for
+the player page. Snapshot reads go through a React-`cache`d `readSnapshot`, so
+one render never downloads the same blob twice.
+
 `scoreMembers` then
 derives, never stored: `kp_t4t5 = kill_t4 + kill_t5`,
 `kp_weighted_all = sum(kill_tX * KILL_POINT_WEIGHTS[tX])` for T1..T5 (fixed

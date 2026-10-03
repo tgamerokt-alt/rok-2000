@@ -52,3 +52,15 @@ export function evaluateTarget(member: ScoredMember, brackets: TargetBracket[]):
   const progress = Math.min(...parts.map((p) => p.value / p.target));
   return { minPower: bracket.minPower, parts, progress, met: progress >= 1 };
 }
+
+export const TARGET_METRICS: TargetMetric[] = ["kills", "dead", "dkp"];
+
+/** Requirements any bracket actually uses — the others get no column / series at all. */
+export function activeMetrics(brackets: TargetBracket[]): TargetMetric[] {
+  return TARGET_METRICS.filter((k) => brackets.some((b) => b[k] > 0));
+}
+
+/** One requirement's result, or null if this governor's bracket doesn't require it. */
+export function partOf(result: TargetResult | null | undefined, metric: TargetMetric): TargetPart | null {
+  return result?.parts.find((p) => p.metric === metric) ?? null;
+}

@@ -164,15 +164,16 @@ function KingdomPicker({ kingdomId, picker, t }: { kingdomId: string | null; pic
 }
 
 function MenuNameEditor({ menu, t }: { menu: KvkMenu; t: Dictionary }) {
-  const [state, formAction, pending] = useActionState(updateKvkMenuFileAction, initialState);
   const [editing, setEditing] = useState(false);
+  const [state, formAction, pending] = useActionState(async (prev: ActionState, formData: FormData) => {
+    const result = await updateKvkMenuFileAction(prev, formData);
+    if (result.success) setEditing(false);
+    return result;
+  }, initialState);
 
   useEffect(() => {
     if (state.error) notifyResult({ success: false, message: state.error });
-    else if (state.success) {
-      notifyResult({ success: true, message: t.admin.menus.updateSuccess });
-      setEditing(false);
-    }
+    else if (state.success) notifyResult({ success: true, message: t.admin.menus.updateSuccess });
   }, [state, t]);
 
   if (!editing) {

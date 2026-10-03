@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ScoredMember } from "@/lib/dkp";
 import { KvkMenu } from "@/lib/types";
-import { Dictionary } from "@/lib/i18n/dictionaries";
+import { Dictionary, formatTemplate } from "@/lib/i18n/dictionaries";
 import { downloadCsv } from "@/lib/csv";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageContainer } from "@/components/ui/PageContainer";
@@ -159,7 +159,9 @@ export default function KvkSummaryClient({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const rows = q
-      ? members.filter((m) => m.name.toLowerCase().includes(q) || m.governor_id.includes(q))
+      ? members.filter((m) => m.name.toLowerCase().includes(q) ||
+            m.previous_name?.toLowerCase().includes(q) ||
+            m.governor_id.includes(q))
       : members;
     return [...rows].sort((a, b) => {
       const av = a[sortKey];
@@ -251,6 +253,12 @@ export default function KvkSummaryClient({
                 className="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-amber-400"
               >
                 {t.analytics.open}
+              </Link>
+              <Link
+                href={`/dashboard/${menu.id}/watchlist`}
+                className="rounded-md border border-amber-400 px-3 py-1.5 text-sm font-semibold text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950"
+              >
+                {t.watchlist.open}
               </Link>
               <Link
                 href={`/kingdom/${menu.kingdomId}`}
@@ -362,6 +370,9 @@ export default function KvkSummaryClient({
                     <Link href={`/governor/${m.governor_id}`} className="hover:text-amber-600 dark:hover:text-amber-400">
                       {m.name}
                     </Link>
+                    {m.previous_name && (
+                      <div className="text-[11px] italic text-slate-500">{formatTemplate(t.common.formerly, { name: m.previous_name })}</div>
+                    )}
                   </td>
                   {visibleColumns.map((col) => (
                     <td key={col.key} className={`px-3 py-2 text-right ${col.cellClassName(m)}`}>
@@ -396,6 +407,9 @@ export default function KvkSummaryClient({
                     >
                       {m.name}
                     </Link>
+                    {m.previous_name && (
+                      <div className="text-[11px] italic text-slate-500">{formatTemplate(t.common.formerly, { name: m.previous_name })}</div>
+                    )}
                     <div className="text-[11px] text-slate-500">{m.governor_id}</div>
                   </div>
                 </div>

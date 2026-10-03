@@ -2,11 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Locale } from "@/lib/i18n/dictionaries";
 import { Theme } from "@/lib/theme";
 
 const COLLAPSE_STORAGE_KEY = "rok_sidebar_collapsed";
+
+function subscribeStorage(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
+function readStoredCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSE_STORAGE_KEY) === "1";
+  } catch {
+    return false; // localStorage unavailable (private mode, etc.) — just stay expanded
+  }
+}
 
 export type IconName = "home" | "kingdom" | "compare" | "list" | "formula" | "layers" | "target" | "backup" | "versus";
 
@@ -215,27 +228,20 @@ export default function SidebarNav({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // Server render is always expanded; the client then reads the saved preference.
+  const storedCollapsed = useSyncExternalStore(subscribeStorage, readStoredCollapsed, () => false);
+  const [collapsedOverride, setCollapsedOverride] = useState<boolean | null>(null);
+  const collapsed = collapsedOverride ?? storedCollapsed;
   const inAdminSection = pathname.startsWith("/admin");
 
-  useEffect(() => {
-    try {
-      setCollapsed(localStorage.getItem(COLLAPSE_STORAGE_KEY) === "1");
-    } catch {
-      // localStorage unavailable (private mode, etc.) — just stay expanded
-    }
-  }, []);
-
   function toggleCollapsed() {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(COLLAPSE_STORAGE_KEY, next ? "1" : "0");
-      } catch {
-        // ignore — nothing to persist to
-      }
-      return next;
-    });
+    const next = !collapsed;
+    setCollapsedOverride(next);
+    try {
+      localStorage.setItem(COLLAPSE_STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      // ignore — nothing to persist to
+    }
   }
 
   function isActive(href: string) {
