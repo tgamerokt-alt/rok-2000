@@ -100,12 +100,12 @@ src/components/
   SidebarNav.tsx     client: the actual sidebar UI (icons, active-link highlight, mobile drawer, EN/ไทย toggle, logout)
   ui/                PageHeader / PageContainer / Card — shared layout primitives; SnapshotSlot + SnapshotArrow (co-located, see below) pair a date with the file it belongs to
 
-src/middleware.ts   protects /admin/** — redirects to /login if no valid session cookie
+src/proxy.ts        protects /admin/** — redirects to /login if no valid session cookie (Next 16 renamed middleware.ts → proxy.ts, exported fn `proxy`)
 
 src/app/
   page.tsx                          public home (kingdom 2000 card + first 8 other kingdoms with KvK menus)
   kingdoms/page.tsx                  public: searchable list of every non-2000 kingdom with ≥1 uploaded KvK menu (single sidebar link, no per-kingdom nav items). Deliberately NOT the campaign-only kingdoms (typed-in stats) — the admin asked to keep this list to uploaded data
-  kingdom/[kingdomId]/page.tsx       public: list of KvK menus for a kingdom (uploaded KvK data only — the admin asked to keep campaign/typed-in stats off this page)
+  kingdom/[kingdomId]/page.tsx       public: list of KvK menus for a kingdom (uploaded KvK data only — the admin asked to keep campaign/typed-in stats off this page); shows a "📈 Compare KvKs" button once the kingdom has ≥2 KvKs
   kingdom/[kingdomId]/compare/       public: KvK vs KvK for one kingdom (?a=&b=) — totals table with ▲/▼, roster in/new/gone, biggest DKP improvers/decliners
   kingdom/[kingdomId]/kvk/[kvkId]/   public: simple stats table
   dashboard/[kvkId]/                 public: full sortable/searchable dashboard (Statsmaster-style)
@@ -115,7 +115,7 @@ src/app/
   players/compare/                   public: two governors side by side within one KvK (?kvk=<menuId>&a=<id>&b=<id>, URL kept in sync for sharing) — player A = --viz-series-1 (blue), B = --viz-series-2 (orange); linked from each /governor page
   governor/[governorId]/             public: one governor's row from every KvK menu (any kingdom), via getGovernorHistory (data.ts) — player names in both stats tables link here. A "KvK shown on this page" bar + KvkDetail card (every stat of that one KvK: power start/end, kills & dead per tier, KP, DKP/rank, resources gathered, alliance help) always render, even with a single KvK; history-table rows switch the KvK. Also per-KvK charts (?kvk=<menuId>, default newest) from getGovernorBreakdown: rank/percentile tiles, player vs median-of-those-who-fought vs top-10 average, DKP by formula term, kills/dead by tier, DKP-per-KvK trend once there are ≥2 KvKs
   login/                             hidden (no nav link) — admin-only sign-in
-  admin/                             protected by middleware
+  admin/                             protected by src/proxy.ts
     page.tsx + AdminMenusClient.tsx  create/update/delete KvK menus (kingdom 2000 only)
     other-kingdoms/                  same AdminMenusClient for every kingdom except 2000 (?kingdom=<id> picks which one to view; the create form has a free-text Kingdom ID field — any numeric ID, known kingdoms are only suggestions)
     formula/                         DKP weight editor, per kingdom via ?kingdom=<id> (default 2000)
@@ -258,7 +258,7 @@ DKP formula (`DkpFormula` in `types.ts`) is per-kingdom, stored in
 Single hardcoded admin account from `.env` (`ADMIN_EMAIL`,
 `ADMIN_PASSWORD`) — not a user table. Session is a JWT signed with
 `SESSION_SECRET`, stored in an httpOnly cookie (`rok_session`, 12h TTL).
-`src/middleware.ts` gates `/admin/**`. There is intentionally no link to
+`src/proxy.ts` gates `/admin/**`. There is intentionally no link to
 `/login` anywhere in the UI — the admin must type the URL.
 
 ## i18n

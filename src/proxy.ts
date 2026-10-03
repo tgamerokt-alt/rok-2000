@@ -5,7 +5,8 @@ export const config = {
   matcher: ["/admin/:path*"],
 };
 
-export async function middleware(request: NextRequest) {
+// Next 16 renamed Middleware to Proxy (same behavior) — this is the /admin/** login gate.
+export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const session = token ? await verifySessionToken(token) : null;
 

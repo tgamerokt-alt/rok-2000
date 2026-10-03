@@ -23,12 +23,22 @@ export default async function KingdomPage({
         <PageHeader
           title={formatTemplate(t.kingdomList.title, { id: kingdomId })}
           action={
-            <Link
-              href="/"
-              className="text-sm text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400"
-            >
-              {t.common.backHome}
-            </Link>
+            <div className="flex items-center gap-4">
+              {menus.length >= 2 && (
+                <Link
+                  href={`/kingdom/${kingdomId}/compare`}
+                  className="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-amber-400"
+                >
+                  {t.kvkCompare.open}
+                </Link>
+              )}
+              <Link
+                href="/"
+                className="text-sm text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400"
+              >
+                {t.common.backHome}
+              </Link>
+            </div>
           }
         />
 

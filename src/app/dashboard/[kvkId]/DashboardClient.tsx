@@ -288,6 +288,12 @@ export default function DashboardClient({
     return [...rows].sort((a, b) => {
       const av = valueOf(a);
       const bv = valueOf(b);
+      // Target columns use -1 for "no target" — always last, either sort direction.
+      if (sortKey.startsWith("target")) {
+        const am = av === -1;
+        const bm = bv === -1;
+        if (am !== bm) return am ? 1 : -1;
+      }
       const cmp = typeof av === "string" ? av.localeCompare(String(bv)) : Number(av) - Number(bv);
       return sortDir === "asc" ? cmp : -cmp;
     });
