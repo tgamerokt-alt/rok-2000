@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { getGovernorBreakdown, getGovernorHistory, getNameHistory, getTargets } from "@/lib/data";
+import { getGovernorBreakdown, getGovernorHistory, getNameHistory, getTargets, GovernorHistoryEntry } from "@/lib/data";
 import { evaluateTarget } from "@/lib/targets";
 import { getDictionary } from "@/lib/i18n/locale";
-import { formatTemplate } from "@/lib/i18n/dictionaries";
+import { Dictionary, formatTemplate } from "@/lib/i18n/dictionaries";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { Card } from "@/components/ui/Card";
@@ -16,6 +16,86 @@ function fmt(n: number) {
 
 function fmtSigned(n: number) {
   return `${n > 0 ? "+" : ""}${n.toLocaleString("en-US")}`;
+}
+
+/** Every stat this governor has in one KvK — grouped so kills, dead and score read separately. */
+function KvkDetail({ entry, t }: { entry: GovernorHistoryEntry; t: Dictionary }) {
+  const g = t.governor;
+  const m = entry.member;
+  if (m.incomplete) {
+    return (
+      <Card className="mb-6 p-4 text-sm text-slate-500 dark:text-slate-400">
+        {formatTemplate(g.incompleteNote, { kvk: entry.menu.name })}
+      </Card>
+    );
+  }
+  const tiers = [1, 2, 3, 4, 5] as const;
+  const killsAll = tiers.reduce((s, n) => s + m[`kill_t${n}`], 0);
+  const sections: { title: string; rows: [string, string, string?][] }[] = [
+    {
+      title: g.secPower,
+      rows: [
+        [g.powerStart, fmt(m.power_start)],
+        [g.powerEnd, fmt(m.power)],
+        [
+          t.kvkSummary.powerChange,
+          fmtSigned(m.power_change),
+          m.power_change < 0 ? "text-red-600 dark:text-red-400" : m.power_change > 0 ? "text-emerald-600 dark:text-emerald-400" : "",
+        ],
+      ],
+    },
+    {
+      title: g.secKills,
+      rows: [
+        ...tiers.map((n): [string, string] => [`T${n}`, fmt(m[`kill_t${n}`])]),
+        [g.allTiers, fmt(killsAll)],
+        [t.kvkSummary.kp, fmt(m.kp_t4t5), "font-bold"],
+        [t.kvkSummary.kpTotal, fmt(m.total_kill_points)],
+      ],
+    },
+    {
+      title: g.secDead,
+      rows: [
+        ...tiers.map((n): [string, string] => [`T${n}`, fmt(m[`dead_t${n}`])]),
+        [g.allTiers, fmt(m.dead_total)],
+        [t.kvkSummary.deadT4T5, fmt(m.dead_t4t5), "font-bold"],
+      ],
+    },
+    {
+      title: g.secScore,
+      rows: [
+        [t.kvkSummary.dkp, fmt(m.dkp), "font-bold text-amber-600 dark:text-amber-400"],
+        [g.rank, entry.rank ? `#${entry.rank} / ${entry.rankedCount}` : "-"],
+        [g.resourcesGathered, fmt(m.resources_gathered)],
+        [g.allianceHelp, fmt(m.alliance_help)],
+      ],
+    },
+  ];
+  return (
+    <Card className="mb-6 p-4">
+      <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+        {formatTemplate(g.detailTitle, { kvk: entry.menu.name })}
+      </h2>
+      <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">{g.detailSub}</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {sections.map((sec) => (
+          <div key={sec.title} className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+            <div className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">{sec.title}</div>
+            <dl className="flex flex-col gap-1 text-sm">
+              {sec.rows.map(([label, value, cls]) => (
+                <div key={label} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-xs text-slate-500 dark:text-slate-400">{label}</dt>
+                  <dd className={`tabular-nums ${cls?.includes("text-") ? cls : `text-slate-900 dark:text-white ${cls ?? ""}`}`}>
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
 }
 
 /** One governor's results across every KvK menu (any kingdom) they appear in. */
@@ -132,25 +212,45 @@ export default async function GovernorPage({
               )
             )}
 
-            {history.length > 1 && (
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400">{t.governor.pickKvk}</span>
-                {history.map((h) => (
-                  <Link
-                    key={h.menu.id}
-                    href={`/governor/${encodeURIComponent(governorId)}?kvk=${h.menu.id}`}
-                    scroll={false}
-                    className={
-                      h.menu.id === selected.menu.id
-                        ? "rounded-md bg-amber-500 px-3 py-1 text-xs font-semibold text-slate-950"
-                        : "rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                    }
-                  >
-                    {h.menu.name}
-                  </Link>
-                ))}
+            {/* Which KvK everything below is about — shown even with a single KvK */}
+            <Card className="mb-4 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">{t.governor.viewingTitle}</div>
+                  <div className="text-lg font-bold text-slate-900 dark:text-white">{selected.menu.name}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {t.common.kingdom} {selected.menu.kingdomId} · {selected.menu.startDate} — {selected.menu.endDate}
+                  </div>
+                </div>
+                <Link
+                  href={`/dashboard/${selected.menu.id}`}
+                  className="text-sm text-amber-600 hover:underline dark:text-amber-400"
+                >
+                  {t.governor.openDashboard}
+                </Link>
               </div>
-            )}
+              {history.length > 1 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{t.governor.pickKvk}</span>
+                  {history.map((h) => (
+                    <Link
+                      key={h.menu.id}
+                      href={`/governor/${encodeURIComponent(governorId)}?kvk=${h.menu.id}`}
+                      scroll={false}
+                      className={
+                        h.menu.id === selected.menu.id
+                          ? "rounded-md bg-amber-500 px-3 py-1 text-xs font-semibold text-slate-950"
+                          : "rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      }
+                    >
+                      {h.menu.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <KvkDetail entry={selected} t={t} />
 
             <GovernorCharts breakdown={breakdown} target={target} kvkName={selected.menu.name} trend={trend} t={t} />
 
@@ -172,10 +272,19 @@ export default async function GovernorPage({
                   {history.map(({ menu, member, rank, rankedCount }) => {
                     const dash = member.incomplete;
                     return (
-                      <tr key={menu.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <tr
+                        key={menu.id}
+                        className={
+                          menu.id === selected.menu.id
+                            ? "bg-amber-50 dark:bg-amber-950/20"
+                            : "hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                        }
+                      >
                         <td className="whitespace-nowrap px-3 py-2">
                           <Link
-                            href={`/dashboard/${menu.id}`}
+                            href={`/governor/${encodeURIComponent(governorId)}?kvk=${menu.id}`}
+                            scroll={false}
+                            title={t.governor.selectHint}
                             className="font-medium text-slate-900 hover:text-amber-600 dark:text-white dark:hover:text-amber-400"
                           >
                             {menu.name}
