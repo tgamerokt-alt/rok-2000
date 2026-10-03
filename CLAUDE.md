@@ -6,24 +6,25 @@ A self-hosted KvK stats dashboard for Rise of Kingdoms, modeled after
 statsmasterdatahub.com (Statsmaster). Next.js 16 (App Router, TypeScript,
 Tailwind v4). No traditional database — `db.json` (kingdoms/KvK menus/
 formulas/campaigns/manual stats) and the two uploaded snapshots per KvK
-menu are stored as plain files in a private **Vercel Blob** store,
-read/written via `src/lib/blobStorage.ts`. The admin still *uploads* a
+menu are stored as plain files in **one Google Drive folder**, read/written
+via `src/lib/driveStorage.ts` (OAuth as the admin's own Google account,
+plain `fetch` against the Drive v3 REST API). The admin still *uploads* a
 Lilith `statsExport.xlsx` for each snapshot, but `parseStatsExport`
 (`xlsx.ts`) parses it to `MemberStat[]` **once, at upload time**
 (`createKvkMenuAction`/`updateKvkMenuFileAction` in `actions.ts`) and only
-that parsed JSON is what actually gets written to Blob — the raw xlsx
+that parsed JSON is what actually gets written to Drive — the raw xlsx
 bytes are discarded after parsing. `getScoredMembers` (`data.ts`) then just
 `JSON.parse`s the stored snapshot on every render instead of re-parsing an
-xlsx workbook each time, which is both faster and means the `xlsx`
-package is only ever touched on the upload path, never the read path.
-This replaced an earlier
-local-disk design (files under a gitignored `data/`, no longer used) once
-the app needed to run on Vercel, whose serverless functions have a
-read-only filesystem that doesn't persist across invocations/deploys. An
-intermediate design stored these same files on Google Drive (service
-account, then OAuth as the admin's own account) — that was dropped in
-favor of Vercel Blob because Drive's API round-trips were noticeably
-slower for this app's read-modify-write-on-every-mutation pattern.
+xlsx workbook each time, so the `xlsx` package is only ever touched on the
+upload path, never the read path.
+Storage history: local disk (`data/`) → Google Drive → Vercel Blob → Google
+Drive again. Blob was dropped on 2026-10-04 because the Hobby plan's 10k
+Simple Operations/month cap was exceeded (every page view re-downloaded
+`db.json` and snapshots with no caching) and Vercel then blocks the whole
+store, taking the site down. Drive has no such per-operation cap; its cost
+is latency per call, which is why `driveStorage.ts` caches name→file-id
+lookups per server instance and `readDbSnapshot` is React-`cache`d (one
+`db.json` download per render).
 
 ## Why this project exists / key decisions
 
@@ -80,9 +81,9 @@ src/lib/
   types.ts          MemberStat, DkpFormula, KvkMenu, Kingdom, KingdomGroup, DbSchema
   xlsx.ts           parses statsExport.xlsx -> MemberStat[] (Thai header map lives here)
   dkp.ts            diffSnapshots (before/after -> per-KvK gains + power_start) + scoreMember(s) (derives kp_t4t5 / dead_total / dead_t4t5 / power_change / dkp)
-  storage.ts        sanitizeSegment + Blob pathname builders (dbFileName, kvkFileName)
-  blobStorage.ts    @vercel/blob-backed client; readBlobFile/writeBlobFile/deleteBlobFile by pathname in one private store (BLOB_READ_WRITE_TOKEN)
-  db.ts             tiny JSON "database" (db.json on Vercel Blob, via blobStorage.ts) with a write queue
+  storage.ts        sanitizeSegment + file-name builders (dbFileName, kvkFileName)
+  driveStorage.ts   Google Drive client; readStoredFile/writeStoredFile/deleteStoredFile/listStoredFiles by file name in one Drive folder (GOOGLE_* env vars)
+  db.ts             tiny JSON "database" (db.json in Drive, via driveStorage.ts) with a write queue
   data.ts           read-only server helpers used by pages (listKvkMenus, getScoredMembers, ...)
   actions.ts        ALL server actions (login, create/update/delete KvK menu, formula, groups)
   session.ts        JWT (jose) session token create/verify, cookie name rok_session
@@ -123,51 +124,55 @@ src/app/
     backups/                         lists + restores db.json backups (see Storage)
     kingdoms/                        multi-kingdom groups + per-kingdom snapshot upload
 
-Vercel Blob (one private store) — flat, no folders:
+Google Drive (one folder) — flat, no subfolders:
   db.json                                    kingdoms, kvkMenus, formulas, groups
   <id>__<id>_<startDate>_before_stats.json   parsed MemberStat[], not the raw xlsx upload
   <id>__<id>_<endDate>_after_stats.json      parsed MemberStat[], not the raw xlsx upload
 ```
 
-## Storage (Vercel Blob)
+## Storage (Google Drive)
 
-- All persistence (`db.json` + every uploaded xlsx snapshot) lives as flat
-  pathnames in one private Vercel Blob store, accessed via
-  `src/lib/blobStorage.ts` (`@vercel/blob`'s `put`/`get`/`del`). Blobs are
-  created with `access: "private"` (never fetchable by a guessed/leaked
-  URL — every read/write goes through the server-side token) and
-  `addRandomSuffix: false` + `allowOverwrite: true` so a given pathname
-  behaves like a normal file: writing to it again overwrites in place
-  instead of minting a new URL, which is what lets `db.ts`'s
-  read-modify-write cycle keep updating the *same* `db.json`.
-- An earlier design stored these same files on Google Drive first with a
-  service account, then with OAuth as the admin's own account (see git
-  history) — dropped for Vercel Blob because Drive's API was noticeably
-  slower for this app's every-mutation read-modify-write pattern, and Blob
-  needs no interactive consent flow to set up.
+- All persistence lives as flat files (looked up by **name**, not path) in
+  one Drive folder, via `src/lib/driveStorage.ts`. Writing an existing name
+  overwrites that file in place (same file id), so `db.ts`'s
+  read-modify-write cycle keeps updating the *same* `db.json`.
+- Files: `db.json`, `db-backup-day-DD.json`, `db-backup-before-restore.json`,
+  and `<kingdomId>__<kingdomId>_<date>_{before,after}_stats.json`.
+  Don't rename/move/duplicate them by hand in Drive; if duplicates of one
+  name ever exist, the newest-modified wins.
 - **Daily db.json backups**: `withDb` (`db.ts`) saves the *pre-mutation*
   db to `db-backup-day-DD.json` on the first write of each UTC day
-  (`db.lastBackupDay` tracks it) — 31 rotating slots, ~a month of history,
-  no `list()` call on the write path. `/admin/backups` lists them
-  (`listBlobFiles`, an "advanced" Blob op — fine for a rarely-opened admin
-  page) and `restoreBackupAction` restores via `replaceDb`, which first saves
-  the current db to `db-backup-before-restore.json`. Snapshot blobs of KvK
-  menus deleted since the backup are gone for good, so restore drops menus
-  whose files no longer exist rather than restoring them broken.
-- Env var: `BLOB_READ_WRITE_TOKEN`. On Vercel, this is injected
-  automatically once a Blob store is attached to the project (Project →
-  Storage → Create Database → Blob → Connect to Project) — no manual
-  Environment Variables entry needed there. For local dev, copy that same
-  token from Project → Settings → Environment Variables into `.env`.
-- Filenames are unique on their own (they already embed the kingdom id) and
-  live directly in the one store — no per-kingdom folders, see
-  `kvkFileName` in `storage.ts`.
-- Vercel Blob's Hobby (free) tier includes 1GB storage/month, 10,000 Simple
-  Operations, 2,000 Advanced Operations, and 10GB data transfer — far more
-  than this single-admin tool's tiny `db.json` + a handful of xlsx
-  snapshots will ever use. `del()` calls are free and uncapped. Exceeding
-  the free tier doesn't bill you, it just blocks further Blob access for
-  ~30 days — not a realistic concern at this app's scale.
+  (`db.lastBackupDay` tracks it) — 31 rotating slots. `/admin/backups`
+  lists them (`listStoredFiles`) and `restoreBackupAction` restores via
+  `replaceDb`, which first saves the current db to
+  `db-backup-before-restore.json`. Snapshot files of KvK menus deleted since
+  the backup are gone for good, so restore drops menus whose files no longer
+  exist rather than restoring them broken.
+- **Env vars** (all required, set in `.env` locally and in Vercel → Settings
+  → Environment Variables):
+  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`,
+  `GOOGLE_DRIVE_FOLDER_ID`.
+- **One-time setup** (done 2026-10-04, project "My First Project", OAuth
+  client `rok-web`): (1) Google Cloud → enable *Google Drive API*;
+  (2) Google Auth Platform → Branding must be complete **including home
+  page + privacy policy URL + an authorized domain** (`rok-2000.vercel.app`)
+  or the *Publish app* button stays disabled; (3) Audience → **Publish app**
+  (status *In production*) — in *Testing* the refresh token expires after 7
+  days (`refresh_token_expires_in: 604799` in the token response is the
+  tell); (4) Data Access scope = `https://www.googleapis.com/auth/drive.file`
+  (non-sensitive; the app only sees files **it created**); (5) Credentials →
+  OAuth client of type *Web application* with redirect URI
+  `https://developers.google.com/oauthplayground` (a *Desktop* client can't
+  be used with the Playground); (6) https://developers.google.com/oauthplayground
+  → gear → "Use your own OAuth credentials" (it resets on every page load —
+  check `client_id=` in the Step 1 URL is yours, not `4074087…`) → scope
+  `drive.file` → Authorize → Exchange → copy the **refresh token**;
+  (7) Step 3 of the Playground: `POST https://www.googleapis.com/drive/v3/files`
+  body `{"name":"rok-data","mimeType":"application/vnd.google-apps.folder"}` →
+  the returned `id` is `GOOGLE_DRIVE_FOLDER_ID`. The folder **must be created
+  this way** — with `drive.file` a folder made by hand in the Drive UI is
+  invisible to the app (404). A service account is *not* used: it has no
+  storage quota on a personal Drive.
 
 ## Data model quick reference
 
@@ -191,7 +196,7 @@ before/after names differ, `diffSnapshots` sets `previous_name` (searched by
 every player search box, shown as "(formerly: …)" in the stats tables), and
 `getNameHistory` (`data.ts`) builds a name timeline across every snapshot for
 the player page. Snapshot reads go through a React-`cache`d `readSnapshot`, so
-one render never downloads the same blob twice.
+one render never downloads the same file twice.
 
 `scoreMembers` then
 derives, never stored: `kp_t4t5 = kill_t4 + kill_t5`,
@@ -226,8 +231,8 @@ DKP formula (`DkpFormula` in `types.ts`) is per-kingdom, stored in
   `startDate`/`endDate`, and/or the menu's `name` — all independent/optional,
   the action accepts partial updates (at least one of these must actually
   change, or produce a no-op that still succeeds), keeping the same id. Since
-  a snapshot's Blob pathname embeds its date (`kvkFileName`), editing a date
-  without also attaching a new file for that slot moves the existing blob's
+  a snapshot's Drive file name embeds its date (`kvkFileName`), editing a date
+  without also attaching a new file for that slot moves the existing file's
   bytes to the new date-embedded pathname (read old → write new → delete
   old) rather than losing it. See `createKvkMenuAction` /
   `updateKvkMenuFileAction` in `actions.ts`.
@@ -241,14 +246,14 @@ DKP formula (`DkpFormula` in `types.ts`) is per-kingdom, stored in
   `SnapshotArrow` in `src/components/ui/SnapshotSlot.tsx`), used twice side
   by side (before → after) in both `AdminMenusClient.tsx` and
   `KingdomsClient.tsx`.
-- Deletes/edits must never leave orphaned snapshot blobs behind.
-  `updateKvkMenuFileAction` overwrites the existing blob in place
-  (`writeBlobFile`'s `allowOverwrite: true` — no separate delete-then-write
-  step needed), and `deleteKvkMenuAction` deletes both blobs. This cascades:
+- Deletes/edits must never leave orphaned snapshot files behind.
+  `updateKvkMenuFileAction` overwrites the existing file in place
+  (`writeStoredFile` updates an existing file in place — no separate
+  delete-then-write step needed), and `deleteKvkMenuAction` deletes both files. This cascades:
   removing a kingdom from a campaign team, deleting a team, or deleting a
   campaign (`removeCampaignKingdomAction` / `deleteCampaignTeamAction` /
   `deleteCampaignAction`) also permanently deletes every `KvkMenu` (and its
-  before/after snapshot blobs) for each affected kingdom — by explicit admin
+  before/after snapshot files) for each affected kingdom — by explicit admin
   request, even though the same kingdom could in principle belong to another
   campaign. The confirm dialogs for these three actions say so; don't revert
   to a "stays in place" message without also reverting the deletion logic.
@@ -294,10 +299,10 @@ way `resetFormulaAction` is already invoked directly from a button.
   changed, return `{ error }` or `{ success: true }` (the `ActionState`
   shape all forms expect).
 - **Run locally**: `npm run dev` (or `npm run build && npm start`). Needs
-  `BLOB_READ_WRITE_TOKEN` in `.env` (see Storage section above) — data
-  lives in the Vercel Blob store, not on local disk. To reset to a clean
-  state, delete the blobs in that store (Project → Storage → Blob →
-  Browse).
+  the four `GOOGLE_*` vars in `.env` (see Storage section above) — data
+  lives in the Drive folder, not on local disk. Use a *separate* Drive
+  folder id for local dev so experiments don't touch production data. To
+  reset to a clean state, delete the files in that folder.
 - **Deploying (production server, avoiding port collisions)**: `next
   start` reads the `PORT` env var (default 3000) — it can't be set via
   `.env` since the HTTP server boots before `.env` loads (Next's own
@@ -306,12 +311,12 @@ way `resetFormulaAction` is already invoked directly from a button.
   that port is actually free on the target server first (`netstat -ano |
   findstr :3001` on Windows, `lsof -i :3001` on Linux) and edit the value
   if it's taken, especially if this server already hosts other apps.
-- **Deploying to Vercel**: attach a Blob store to the project (Project →
-  Storage → Create Database → Blob → Connect to Project) — this injects
-  `BLOB_READ_WRITE_TOKEN` automatically, no manual Environment Variables
-  entry needed for it. Without it every `db.ts`/xlsx read or write throws.
-  No persistent-disk/PM2 concerns apply here since storage is already
-  external (Vercel Blob), unlike the Render/PM2 path above.
+- **Deploying to Vercel**: add the four `GOOGLE_*` env vars (plus
+  `SESSION_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`) under Project →
+  Settings → Environment Variables, then redeploy — env changes don't apply
+  to existing deployments. Without them every `db.ts`/snapshot read or write
+  throws. No persistent-disk/PM2 concerns apply here since storage is
+  already external (Drive), unlike the Render/PM2 path above.
 - **Test file**: a real sample export used during development is at
   `C:\Users\windows\Downloads\4180_20260912_20260912_statsExport.xlsx` (also
   `2000_20260501_20260501_statsExport (1).xlsx`).

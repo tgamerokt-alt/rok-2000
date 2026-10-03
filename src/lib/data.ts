@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { readDbSnapshot } from "./db";
 import { kvkFileName } from "./storage";
-import { readBlobFile } from "./blobStorage";
+import { readStoredFile } from "./driveStorage";
 import { diffSnapshots, ScoredMember, scoreMembers } from "./dkp";
 import { DEFAULT_DKP_FORMULA, DkpFormula, KvkMenu, ManualKingdomStat, MemberStat, PRIMARY_KINGDOM_ID, TargetBracket } from "./types";
 
@@ -24,10 +24,10 @@ export async function getKvkMenu(menuId: string): Promise<KvkMenu | null> {
 /**
  * One parsed snapshot file, memoized for the duration of a single server
  * render (React `cache`) — several helpers on one page (scores, name
- * history, …) read the same files, and each Blob read is a network round trip.
+ * history, …) read the same files, and each Drive read is a network round trip.
  */
 const readSnapshot = cache(async (kingdomId: string, fileName: string): Promise<MemberStat[] | null> => {
-  const buffer = await readBlobFile(kvkFileName(kingdomId, fileName));
+  const buffer = await readStoredFile(kvkFileName(kingdomId, fileName));
   return buffer ? (JSON.parse(buffer.toString("utf8")) as MemberStat[]) : null;
 });
 
@@ -37,7 +37,7 @@ export async function getScoredMembers(menu: KvkMenu) {
     readSnapshot(menu.kingdomId, menu.afterFileName),
   ]);
   if (!before || !after) {
-    throw new Error(`Missing snapshot file(s) in Blob store for KvK menu ${menu.id}`);
+    throw new Error(`Missing snapshot file(s) in Drive folder for KvK menu ${menu.id}`);
   }
   const delta = diffSnapshots(before, after);
   const formula = await getFormula(menu.kingdomId);
@@ -107,7 +107,7 @@ export async function getGovernorHistory(governorId: string): Promise<GovernorHi
       try {
         members = await getScoredMembers(menu);
       } catch {
-        return null; // a menu with a missing snapshot blob shouldn't break the whole page
+        return null; // a menu with a missing snapshot file shouldn't break the whole page
       }
       const member = members.find((m) => m.governor_id === governorId);
       if (!member) return null;

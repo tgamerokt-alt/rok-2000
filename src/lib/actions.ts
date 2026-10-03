@@ -8,7 +8,7 @@ import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "./session";
 import { requireAdmin } from "./require-admin";
 import { replaceDb, withDb } from "./db";
 import { BACKUP_PREFIX, kvkFileName, sanitizeSegment } from "./storage";
-import { deleteBlobFile, readBlobFile, writeBlobFile } from "./blobStorage";
+import { deleteStoredFile, readStoredFile, writeStoredFile } from "./driveStorage";
 import { parseStatsExport, XlsxParseError } from "./xlsx";
 import { Campaign, DbSchema, DEFAULT_DKP_FORMULA, DkpFormula, MemberStat, StatWeight, TargetBracket } from "./types";
 import { getDictionary, LOCALE_COOKIE } from "./i18n/locale";
@@ -101,8 +101,8 @@ function readFormWeight(formData: FormData, key: string, fallback: StatWeight): 
 async function deleteKvkFiles(menus: { kingdomId: string; beforeFileName: string; afterFileName: string }[]) {
   await Promise.all(
     menus.flatMap((m) => [
-      deleteBlobFile(kvkFileName(m.kingdomId, m.beforeFileName)),
-      deleteBlobFile(kvkFileName(m.kingdomId, m.afterFileName)),
+      deleteStoredFile(kvkFileName(m.kingdomId, m.beforeFileName)),
+      deleteStoredFile(kvkFileName(m.kingdomId, m.afterFileName)),
     ])
   );
 }
@@ -156,8 +156,8 @@ export async function createKvkMenuAction(
   const beforeFileName = `${kingdomId}_${startDate}_before_stats.json`;
   const afterFileName = `${kingdomId}_${endDate}_after_stats.json`;
   await Promise.all([
-    writeBlobFile(kvkFileName(kingdomId, beforeFileName), JSON.stringify(beforeResult.members)),
-    writeBlobFile(kvkFileName(kingdomId, afterFileName), JSON.stringify(afterResult.members)),
+    writeStoredFile(kvkFileName(kingdomId, beforeFileName), JSON.stringify(beforeResult.members)),
+    writeStoredFile(kvkFileName(kingdomId, afterFileName), JSON.stringify(afterResult.members)),
   ]);
 
   const now = new Date().toISOString();
@@ -251,24 +251,24 @@ export async function updateKvkMenuFileAction(
 
   await Promise.all([
     beforeMembers
-      ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.beforeFileName), JSON.stringify(beforeMembers))
+      ? writeStoredFile(kvkFileName(menuInfo.kingdomId, menuInfo.beforeFileName), JSON.stringify(beforeMembers))
       : beforeRenamed
-      ? readBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevBeforeFileName)).then((data) =>
-          data ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.beforeFileName), data) : undefined
+      ? readStoredFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevBeforeFileName)).then((data) =>
+          data ? writeStoredFile(kvkFileName(menuInfo.kingdomId, menuInfo.beforeFileName), data) : undefined
         )
       : Promise.resolve(),
     afterMembers
-      ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.afterFileName), JSON.stringify(afterMembers))
+      ? writeStoredFile(kvkFileName(menuInfo.kingdomId, menuInfo.afterFileName), JSON.stringify(afterMembers))
       : afterRenamed
-      ? readBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevAfterFileName)).then((data) =>
-          data ? writeBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.afterFileName), data) : undefined
+      ? readStoredFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevAfterFileName)).then((data) =>
+          data ? writeStoredFile(kvkFileName(menuInfo.kingdomId, menuInfo.afterFileName), data) : undefined
         )
       : Promise.resolve(),
   ]);
 
   await Promise.all([
-    beforeRenamed ? deleteBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevBeforeFileName)) : Promise.resolve(),
-    afterRenamed ? deleteBlobFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevAfterFileName)) : Promise.resolve(),
+    beforeRenamed ? deleteStoredFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevBeforeFileName)) : Promise.resolve(),
+    afterRenamed ? deleteStoredFile(kvkFileName(menuInfo.kingdomId, menuInfo.prevAfterFileName)) : Promise.resolve(),
   ]);
 
   revalidatePath("/admin");
@@ -292,8 +292,8 @@ export async function deleteKvkMenuAction(menuId: string) {
   });
   if (kingdomId && beforeFileName && afterFileName) {
     await Promise.all([
-      deleteBlobFile(kvkFileName(kingdomId, beforeFileName)),
-      deleteBlobFile(kvkFileName(kingdomId, afterFileName)),
+      deleteStoredFile(kvkFileName(kingdomId, beforeFileName)),
+      deleteStoredFile(kvkFileName(kingdomId, afterFileName)),
     ]);
   }
   revalidatePath("/admin");
@@ -694,7 +694,7 @@ export async function updateTargetsAction(_prev: ActionState, formData: FormData
 }
 
 /**
- * Restores db.json from a backup blob. Snapshot files of KvK menus deleted
+ * Restores db.json from a backup file. Snapshot files of KvK menus deleted
  * since the backup are gone for good (deletes are permanent), so menus whose
  * files no longer exist are dropped instead of restored into a broken state.
  */
@@ -704,7 +704,7 @@ export async function restoreBackupAction(pathname: string): Promise<ActionState
   if (!pathname.startsWith(BACKUP_PREFIX) || !pathname.endsWith(".json") || pathname.includes("/")) {
     return { error: t.errors.backupInvalid };
   }
-  const raw = await readBlobFile(pathname);
+  const raw = await readStoredFile(pathname);
   if (!raw) return { error: t.errors.backupInvalid };
 
   let backup: DbSchema;
@@ -718,8 +718,8 @@ export async function restoreBackupAction(pathname: string): Promise<ActionState
   const present = await Promise.all(
     backup.kvkMenus.map(async (m) => {
       const [before, after] = await Promise.all([
-        readBlobFile(kvkFileName(m.kingdomId, m.beforeFileName)),
-        readBlobFile(kvkFileName(m.kingdomId, m.afterFileName)),
+        readStoredFile(kvkFileName(m.kingdomId, m.beforeFileName)),
+        readStoredFile(kvkFileName(m.kingdomId, m.afterFileName)),
       ]);
       return Boolean(before && after);
     })
