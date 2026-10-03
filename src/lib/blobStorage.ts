@@ -1,4 +1,4 @@
-import { put, del, get, BlobNotFoundError } from "@vercel/blob";
+import { put, del, get, list, BlobNotFoundError } from "@vercel/blob";
 
 /**
  * Persistence lives in a private Vercel Blob store (the read-write token
@@ -52,4 +52,16 @@ export async function deleteBlobFile(name: string): Promise<void> {
   } catch (err) {
     if (!(err instanceof BlobNotFoundError)) throw err;
   }
+}
+
+/** Lists blobs whose pathname starts with `prefix` (an "advanced" Blob operation — use sparingly). */
+export async function listBlobFiles(prefix: string): Promise<{ pathname: string; uploadedAt: Date; size: number }[]> {
+  const out: { pathname: string; uploadedAt: Date; size: number }[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await list({ prefix, cursor });
+    for (const b of page.blobs) out.push({ pathname: b.pathname, uploadedAt: b.uploadedAt, size: b.size });
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  return out;
 }

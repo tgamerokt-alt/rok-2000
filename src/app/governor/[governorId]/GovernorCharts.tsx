@@ -2,6 +2,7 @@
 
 import type { GovernorBreakdown, MetricBenchmark } from "@/lib/data";
 import { DkpFormula } from "@/lib/types";
+import type { TargetResult } from "@/lib/targets";
 import { Dictionary, formatTemplate } from "@/lib/i18n/dictionaries";
 import { Card } from "@/components/ui/Card";
 import {
@@ -34,13 +35,61 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: s
   );
 }
 
+/** A meter per requirement: fill = this player's value, track = the target (same-ramp lighter step). */
+function TargetCard({ target, t }: { target: TargetResult; t: Dictionary }) {
+  const g = t.governor;
+  const metricLabel = { kills: t.kvkSummary.kp, dead: t.kvkSummary.deadT4T5, dkp: t.kvkSummary.dkp };
+  return (
+    <ChartCard
+      title={g.targetTitle}
+      subtitle={formatTemplate(g.targetSub, { bracket: fmtCompact(target.minPower) })}
+    >
+      <div
+        className={`mb-3 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-semibold ${
+          target.met
+            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+            : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400"
+        }`}
+      >
+        <span aria-hidden>{target.met ? "✓" : "✗"}</span>
+        {target.met ? g.targetMet : formatTemplate(g.targetMissed, { pct: fmtPct(target.progress) })}
+      </div>
+      <div className="flex flex-col gap-3">
+        {target.parts.map((p) => {
+          const ratio = p.value / p.target;
+          return (
+            <div key={p.metric}>
+              <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+                <span className="font-semibold text-slate-600 dark:text-slate-300">{metricLabel[p.metric]}</span>
+                <span className="tabular-nums text-slate-500 dark:text-slate-400">
+                  <span className="font-semibold text-slate-900 dark:text-white">{fmtCompact(p.value)}</span> /{" "}
+                  {fmtCompact(p.target)} · {fmtPct(ratio)} {ratio >= 1 ? "✓" : ""}
+                </span>
+              </div>
+              <div className="h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--viz-muted-mark)" }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${Math.min(100, ratio * 100)}%`, background: "var(--viz-series-1)" }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </ChartCard>
+  );
+}
+
 export default function GovernorCharts({
   breakdown,
+  target,
   kvkName,
   trend,
   t,
 }: {
   breakdown: GovernorBreakdown | null;
+  /** This player's KvK target result, or null when the kingdom has no applicable target. */
+  target: TargetResult | null;
   kvkName: string;
   /** Oldest → newest, one entry per KvK this governor appears in. */
   trend: { key: string; label: string; dkp: number; incomplete: boolean }[];
@@ -172,6 +221,12 @@ export default function GovernorCharts({
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {target && (
+          <div className="xl:col-span-2">
+            <TargetCard target={target} t={t} />
+          </div>
+        )}
+
         <ChartCard title={g.compareTitle} subtitle={formatTemplate(g.compareSub, { kvk: kvkName })}>
           <div className="flex flex-col gap-3">
             {(

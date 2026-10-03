@@ -6,11 +6,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "./session";
 import { requireAdmin } from "./require-admin";
-import { withDb } from "./db";
-import { kvkFileName, sanitizeSegment } from "./storage";
+import { replaceDb, withDb } from "./db";
+import { BACKUP_PREFIX, kvkFileName, sanitizeSegment } from "./storage";
 import { deleteBlobFile, readBlobFile, writeBlobFile } from "./blobStorage";
 import { parseStatsExport, XlsxParseError } from "./xlsx";
-import { Campaign, DEFAULT_DKP_FORMULA, DkpFormula, MemberStat, StatWeight } from "./types";
+import { Campaign, DbSchema, DEFAULT_DKP_FORMULA, DkpFormula, MemberStat, StatWeight, TargetBracket } from "./types";
 import { getDictionary, LOCALE_COOKIE } from "./i18n/locale";
 import { formatTemplate, locales } from "./i18n/dictionaries";
 import { THEME_COOKIE } from "./theme";
@@ -654,3 +654,79 @@ export async function deleteManualKingdomStatAction(kingdomId: string) {
   revalidatePath("/compare");
 }
 
+
+export async function updateTargetsAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const { t } = await getDictionary();
+  const kingdomId = sanitizeSegment(String(formData.get("kingdomId") || "").trim());
+  if (!/^\d{1,6}$/.test(kingdomId)) return { error: t.errors.kingdomRequired };
+
+  let rows: unknown;
+  try {
+    rows = JSON.parse(String(formData.get("brackets") || "[]"));
+  } catch {
+    return { error: t.errors.invalidTargets };
+  }
+  if (!Array.isArray(rows)) return { error: t.errors.invalidTargets };
+
+  const brackets: TargetBracket[] = [];
+  for (const row of rows as Record<string, unknown>[]) {
+    const nums = [row.minPower, row.kills, row.dead, row.dkp].map(Number);
+    if (nums.some((n) => !Number.isFinite(n) || n < 0)) return { error: t.errors.invalidTargets };
+    const [minPower, kills, dead, dkp] = nums;
+    brackets.push({ minPower, kills, dead, dkp });
+  }
+  if (new Set(brackets.map((b) => b.minPower)).size !== brackets.length) {
+    return { error: t.errors.duplicateTargetBracket };
+  }
+  brackets.sort((a, b) => a.minPower - b.minPower);
+
+  await withDb((db) => {
+    if (brackets.length === 0) delete db.targets[kingdomId];
+    else db.targets[kingdomId] = brackets;
+  });
+
+  revalidatePath("/admin/targets");
+  revalidatePath("/dashboard/[kvkId]", "page");
+  revalidatePath("/dashboard/[kvkId]/analytics", "page");
+  revalidatePath("/governor/[governorId]", "page");
+  return { success: true };
+}
+
+/**
+ * Restores db.json from a backup blob. Snapshot files of KvK menus deleted
+ * since the backup are gone for good (deletes are permanent), so menus whose
+ * files no longer exist are dropped instead of restored into a broken state.
+ */
+export async function restoreBackupAction(pathname: string): Promise<ActionState & { droppedMenus?: number }> {
+  await requireAdmin();
+  const { t } = await getDictionary();
+  if (!pathname.startsWith(BACKUP_PREFIX) || !pathname.endsWith(".json") || pathname.includes("/")) {
+    return { error: t.errors.backupInvalid };
+  }
+  const raw = await readBlobFile(pathname);
+  if (!raw) return { error: t.errors.backupInvalid };
+
+  let backup: DbSchema;
+  try {
+    backup = JSON.parse(raw.toString("utf8")) as DbSchema;
+    if (!Array.isArray(backup.kvkMenus) || !Array.isArray(backup.kingdoms)) throw new Error("shape");
+  } catch {
+    return { error: t.errors.backupInvalid };
+  }
+
+  const present = await Promise.all(
+    backup.kvkMenus.map(async (m) => {
+      const [before, after] = await Promise.all([
+        readBlobFile(kvkFileName(m.kingdomId, m.beforeFileName)),
+        readBlobFile(kvkFileName(m.kingdomId, m.afterFileName)),
+      ]);
+      return Boolean(before && after);
+    })
+  );
+  const kvkMenus = backup.kvkMenus.filter((_, i) => present[i]);
+  await replaceDb({ ...backup, kvkMenus });
+
+  revalidatePath("/", "layout");
+  return { success: true, droppedMenus: backup.kvkMenus.length - kvkMenus.length };
+}

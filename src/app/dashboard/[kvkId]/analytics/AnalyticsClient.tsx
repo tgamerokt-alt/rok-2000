@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { ScoredMember } from "@/lib/dkp";
-import { KvkMenu } from "@/lib/types";
+import { KvkMenu, TargetBracket } from "@/lib/types";
+import { evaluateTarget, TargetResult } from "@/lib/targets";
 import { Dictionary, formatTemplate } from "@/lib/i18n/dictionaries";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PageContainer } from "@/components/ui/PageContainer";
@@ -70,10 +71,12 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub: string 
 export default function AnalyticsClient({
   menu,
   members,
+  targets,
   t,
 }: {
   menu: KvkMenu;
   members: ScoredMember[];
+  targets: TargetBracket[];
   t: Dictionary;
 }) {
   const a = t.analytics;
@@ -222,10 +225,43 @@ export default function AnalyticsClient({
     };
   });
 
+  // ---- KvK targets (only when the admin has set some) ------------------
+  const evaluated = complete
+    .map((m) => evaluateTarget(m, targets))
+    .filter((r): r is TargetResult => r !== null);
+  const metCount = evaluated.filter((r) => r.met).length;
+  const targetGroups = [...new Set(evaluated.map((r) => r.minPower))].sort((x, y) => x - y).map((min) => {
+    const inGroup = evaluated.filter((r) => r.minPower === min);
+    const met = inGroup.filter((r) => r.met).length;
+    return { min, total: inGroup.length, met };
+  });
+  const targetItems: ColumnItem[] = targetGroups.map((g) => {
+    const label = `${fmtCompact(g.min)}+`;
+    return {
+      key: String(g.min),
+      label,
+      value: (g.met / g.total) * 100,
+      valueLabel: fmtPct(g.met / g.total),
+      tooltip: (
+        <>
+          <TipTitle>{formatTemplate(a.targetBracketTip, { bracket: label })}</TipTitle>
+          <TipRow color={SERIES} label={a.targetMetLbl} value={fmtPct(g.met / g.total, 1)} />
+          <TipRow label={a.targetMetCount} value={`${g.met} / ${g.total}`} />
+        </>
+      ),
+    };
+  });
+
   // ---- written insights -------------------------------------------------
   const biggestLoss = [...losers].sort((x, y) => x.power_change - y.power_change)[0];
   const idle = complete.length - participants.length;
   const insights = [
+    evaluated.length > 0 &&
+      formatTemplate(a.insightTargets, {
+        met: metCount.toLocaleString("en-US"),
+        n: evaluated.length.toLocaleString("en-US"),
+        pct: fmtPct(metCount / evaluated.length),
+      }),
     formatTemplate(a.insightTop10, { share: fmtPct(top10Share) }),
     formatTemplate(a.insightTop20, { share: fmtPct(at20.y) }),
     efficiency[0] &&
@@ -272,6 +308,20 @@ export default function AnalyticsClient({
         </Card>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {evaluated.length > 0 && (
+            <div className="xl:col-span-2">
+              <ChartCard
+                title={formatTemplate(a.targetTitle, {
+                  met: metCount.toLocaleString("en-US"),
+                  n: evaluated.length.toLocaleString("en-US"),
+                })}
+                subtitle={a.targetSub}
+              >
+                <ColumnChart items={targetItems} formatTick={(n) => `${Math.round(n)}%`} />
+              </ChartCard>
+            </div>
+          )}
+
           <ChartCard title={a.topDkpTitle} subtitle={a.topDkpSub}>
             <HBarChart items={topItems} />
           </ChartCard>

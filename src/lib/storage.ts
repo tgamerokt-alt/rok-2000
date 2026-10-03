@@ -3,6 +3,18 @@ export function sanitizeSegment(segment: string) {
   return segment.replace(/[\\/]/g, "_").replace(/\.\./g, "_");
 }
 
+/** Daily db.json backups rotate through one slot per day-of-month (~a month of history, max 31 blobs). */
+export const BACKUP_PREFIX = "db-backup-";
+
+export function backupFileName(isoDay: string) {
+  return `${BACKUP_PREFIX}day-${isoDay.slice(8, 10)}.json`;
+}
+
+/** Snapshot of the db taken right before a restore, so a restore itself can be undone. */
+export function preRestoreBackupFileName() {
+  return `${BACKUP_PREFIX}before-restore.json`;
+}
+
 export function dbFileName() {
   return "db.json";
 }

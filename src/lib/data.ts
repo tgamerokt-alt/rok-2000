@@ -2,7 +2,7 @@ import { readDbSnapshot } from "./db";
 import { kvkFileName } from "./storage";
 import { readBlobFile } from "./blobStorage";
 import { diffSnapshots, ScoredMember, scoreMembers } from "./dkp";
-import { DEFAULT_DKP_FORMULA, DkpFormula, KvkMenu, ManualKingdomStat, MemberStat, PRIMARY_KINGDOM_ID } from "./types";
+import { DEFAULT_DKP_FORMULA, DkpFormula, KvkMenu, ManualKingdomStat, MemberStat, PRIMARY_KINGDOM_ID, TargetBracket } from "./types";
 
 export async function getFormula(kingdomId: string): Promise<DkpFormula> {
   const db = await readDbSnapshot();
@@ -169,4 +169,9 @@ export async function getGovernorBreakdown(menu: KvkMenu, governorId: string): P
     dead: benchmark((m) => m.dead_t4t5),
     contributions,
   };
+}
+
+export async function getTargets(kingdomId: string): Promise<TargetBracket[]> {
+  const db = await readDbSnapshot();
+  return db.targets[kingdomId] ?? [];
 }

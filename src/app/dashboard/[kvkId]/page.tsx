@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getKvkMenu, getScoredMembers } from "@/lib/data";
+import { getKvkMenu, getScoredMembers, getTargets } from "@/lib/data";
 import { getDictionary } from "@/lib/i18n/locale";
 import DashboardClient from "./DashboardClient";
 
@@ -14,8 +14,11 @@ export default async function DashboardPage({
   const menu = await getKvkMenu(kvkId);
   if (!menu) notFound();
 
-  const members = await getScoredMembers(menu);
-  const { t } = await getDictionary();
+  const [members, targets, { t }] = await Promise.all([
+    getScoredMembers(menu),
+    getTargets(menu.kingdomId),
+    getDictionary(),
+  ]);
 
-  return <DashboardClient menu={menu} members={members} t={t} />;
+  return <DashboardClient menu={menu} members={members} targets={targets} t={t} />;
 }

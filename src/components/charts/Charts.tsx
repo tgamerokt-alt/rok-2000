@@ -171,6 +171,8 @@ export interface BarItem {
   valueLabel: string;
   /** De-emphasized (gray) — for context rows next to the one that matters. */
   muted?: boolean;
+  /** Explicit series color (e.g. player A / B); overrides `muted`. */
+  color?: string;
   tooltip: ReactNode;
 }
 
@@ -215,12 +217,89 @@ export function HBarChart({ items }: { items: BarItem[] }) {
                 </text>
                 <path
                   d={hBarPath(labelW, y + (rowH - barH) / 2, len, barH)}
-                  fill={item.muted ? "var(--viz-muted-mark)" : "var(--viz-series-1)"}
+                  fill={item.color ?? (item.muted ? "var(--viz-muted-mark)" : "var(--viz-series-1)")}
                   opacity={hovered && !active ? 0.55 : 1}
                 />
                 <text x={labelW + len + 6} y={y + rowH / 2} dy="0.35em" {...AXIS_TEXT} className="tabular-nums">
                   {item.valueLabel}
                 </text>
+              </g>
+            );
+          })}
+        </svg>
+      )}
+      <Tooltip state={tip} width={width} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Grouped horizontal bars: one group per category, one bar per series, one shared scale
+// ---------------------------------------------------------------------------
+
+export interface GroupedBarItem {
+  key: string;
+  label: string;
+  values: { value: number; valueLabel: string; color: string }[];
+  /** One tooltip per group listing every series — the pointer never has to land on a single bar. */
+  tooltip: ReactNode;
+}
+
+export function GroupedHBarChart({ items }: { items: GroupedBarItem[] }) {
+  const [ref, width] = useElementWidth<HTMLDivElement>();
+  const [tip, setTip] = useState<TooltipState | null>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  const series = Math.max(1, ...items.map((i) => i.values.length));
+  const barH = 12;
+  const gap = 2; // surface gap between a group's bars
+  const groupPad = 12;
+  const groupH = series * barH + (series - 1) * gap + groupPad;
+  const longest = Math.max(...items.map((i) => visualLength(i.label)), 4);
+  const labelW = Math.min(width * 0.38, 140, Math.max(48, longest * 7 + 12));
+  const valueW = 64;
+  const plotW = Math.max(10, width - labelW - valueW);
+  const max = Math.max(1, ...items.flatMap((i) => i.values.map((v) => v.value)));
+
+  return (
+    <div ref={ref} className="relative" onPointerLeave={() => (setTip(null), setHovered(null))}>
+      {width > 0 && (
+        <svg width={width} height={items.length * groupH} role="img">
+          {items.map((item, gi) => {
+            const y0 = gi * groupH + groupPad / 2;
+            const active = hovered === item.key;
+            return (
+              <g
+                key={item.key}
+                onPointerMove={(e) => {
+                  const box = ref.current!.getBoundingClientRect();
+                  setHovered(item.key);
+                  setTip({ x: e.clientX - box.left, y: e.clientY - box.top, content: item.tooltip });
+                }}
+              >
+                <rect x={0} y={gi * groupH} width={width} height={groupH} fill="transparent" />
+                <text
+                  x={labelW - 8}
+                  y={gi * groupH + groupH / 2}
+                  dy="0.35em"
+                  textAnchor="end"
+                  {...AXIS_TEXT}
+                  fill="var(--viz-text)"
+                >
+                  {truncateVisual(item.label, Math.max(4, Math.floor((labelW - 10) / 7)))}
+                </text>
+                {item.values.map((v, si) => {
+                  const y = y0 + si * (barH + gap);
+                  const len = (Math.max(0, v.value) / max) * plotW;
+                  return (
+                    <g key={si}>
+                      <path d={hBarPath(labelW, y, len, barH)} fill={v.color} opacity={hovered && !active ? 0.55 : 1} />
+                      <text x={labelW + len + 6} y={y + barH / 2} dy="0.35em" {...AXIS_TEXT} className="tabular-nums">
+                        {v.valueLabel}
+                      </text>
+                    </g>
+                  );
+                })}
               </g>
             );
           })}

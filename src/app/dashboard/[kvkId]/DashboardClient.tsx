@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ScoredMember } from "@/lib/dkp";
-import { KvkMenu } from "@/lib/types";
+import { KvkMenu, TargetBracket } from "@/lib/types";
+import { evaluateTarget } from "@/lib/targets";
 import { Dictionary } from "@/lib/i18n/dictionaries";
 import { downloadCsv } from "@/lib/csv";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -29,7 +30,8 @@ type SortKey =
   | "dead_t5"
   | "dead_t4t5"
   | "dead_total"
-  | "dkp";
+  | "dkp"
+  | "target";
 
 function fmt(n: number) {
   const abs = Math.abs(n);
@@ -61,12 +63,20 @@ interface ColumnDef {
 export default function DashboardClient({
   menu,
   members,
+  targets,
   t,
 }: {
   menu: KvkMenu;
   members: ScoredMember[];
+  /** This kingdom's KvK target brackets — empty means no targets set (no column / filter). */
+  targets: TargetBracket[];
   t: Dictionary;
 }) {
+  const [targetFilter, setTargetFilter] = useState<"all" | "met" | "missed">("all");
+  const targetById = useMemo(
+    () => new Map(members.map((m) => [m.governor_id, evaluateTarget(m, targets)])),
+    [members, targets]
+  );
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("dkp");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -167,6 +177,28 @@ export default function DashboardClient({
     },
   ];
 
+  if (targets.length > 0) {
+    const pct = (m: ScoredMember) => {
+      const r = targetById.get(m.governor_id);
+      return r ? `${Math.round(r.progress * 100)}%` : "-";
+    };
+    columns.push({
+      key: "target",
+      label: t.targets.column,
+      cellClassName: (m) => {
+        const r = targetById.get(m.governor_id);
+        if (!r) return "text-slate-400";
+        return r.met ? "font-semibold text-emerald-600 dark:text-emerald-400" : "font-semibold text-red-600 dark:text-red-400";
+      },
+      // Status is never color-alone: ✓ / ✗ ride along with the percentage.
+      render: (m) => {
+        const r = targetById.get(m.governor_id);
+        return r ? `${r.met ? "✓" : "✗"} ${pct(m)}` : "-";
+      },
+      csv: (m) => pct(m),
+    });
+  }
+
   const visibleColumns = columns.filter((c) => !hiddenCols.has(c.key));
 
   const totals = useMemo(() => {
@@ -188,19 +220,29 @@ export default function DashboardClient({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const rows = q
+    const searched = q
       ? members.filter(
           (m) => m.name.toLowerCase().includes(q) || m.governor_id.includes(q)
         )
       : members;
+    const rows =
+      targetFilter === "all"
+        ? searched
+        : searched.filter((m) => {
+            const r = targetById.get(m.governor_id);
+            return r !== null && r !== undefined && (targetFilter === "met" ? r.met : !r.met);
+          });
 
+    // "target" isn't a member field — sort by progress, with no-requirement rows last.
+    const valueOf = (m: ScoredMember) =>
+      sortKey === "target" ? (targetById.get(m.governor_id)?.progress ?? -1) : m[sortKey];
     return [...rows].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
+      const av = valueOf(a);
+      const bv = valueOf(b);
       const cmp = typeof av === "string" ? av.localeCompare(String(bv)) : Number(av) - Number(bv);
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [members, search, sortKey, sortDir]);
+  }, [members, search, sortKey, sortDir, targetFilter, targetById]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -308,6 +350,20 @@ export default function DashboardClient({
             placeholder={t.dashboard.searchPlaceholder}
             className="w-full max-w-sm rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
           />
+          {targets.length > 0 && (
+            <select
+              value={targetFilter}
+              onChange={(e) => {
+                setTargetFilter(e.target.value as typeof targetFilter);
+                setPage(1);
+              }}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            >
+              <option value="all">{t.targets.filterAll}</option>
+              <option value="met">{t.targets.filterMet}</option>
+              <option value="missed">{t.targets.filterMissed}</option>
+            </select>
+          )}
           <div className="ml-auto flex items-center gap-2">
             <ColumnToggle
               label={t.dashboard.columns}

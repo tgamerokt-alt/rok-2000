@@ -21,6 +21,7 @@ export default async function Sidebar() {
       icon: "kingdom",
     },
     { href: "/kingdoms", label: t.nav.otherKingdoms, icon: "layers" },
+    { href: "/players/compare", label: t.playerCompare.nav, icon: "versus" },
     { href: "/compare", label: t.nav.compare, icon: "compare" },
   ];
 
@@ -28,7 +29,9 @@ export default async function Sidebar() {
     { href: "/admin", label: t.admin.nav.menus, icon: "list" },
     { href: "/admin/other-kingdoms", label: t.admin.nav.otherKingdoms, icon: "kingdom" },
     { href: "/admin/formula", label: t.admin.nav.formula, icon: "formula" },
+    { href: "/admin/targets", label: t.admin.nav.targets, icon: "target" },
     { href: "/admin/kingdoms", label: t.admin.nav.campaigns, icon: "layers" },
+    { href: "/admin/backups", label: t.admin.nav.backups, icon: "backup" },
   ];
 
   return (

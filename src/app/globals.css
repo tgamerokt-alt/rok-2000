@@ -11,6 +11,7 @@ body {
  * (white / slate-900) — re-run the validator if you change them. */
 .viz-root {
   --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
   --viz-negative: #e34948;
   --viz-area: rgb(42 120 214 / 0.1);
   --viz-muted-mark: #cbd5e1;
@@ -22,6 +23,7 @@ body {
 }
 .dark .viz-root {
   --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
   --viz-negative: #e66767;
   --viz-area: rgb(57 135 229 / 0.12);
   --viz-muted-mark: #475569;

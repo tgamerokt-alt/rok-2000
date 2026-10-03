@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getGovernorBreakdown, getGovernorHistory } from "@/lib/data";
+import { getGovernorBreakdown, getGovernorHistory, getTargets } from "@/lib/data";
+import { evaluateTarget } from "@/lib/targets";
 import { getDictionary } from "@/lib/i18n/locale";
 import { formatTemplate } from "@/lib/i18n/dictionaries";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -32,7 +33,10 @@ export default async function GovernorPage({
   // Per-KvK charts show one KvK at a time: ?kvk=<menuId>, else the newest one.
   const requestedKvk = Array.isArray(kvk) ? kvk[0] : kvk;
   const selected = history.find((h) => h.menu.id === requestedKvk) ?? history[0];
-  const breakdown = selected ? await getGovernorBreakdown(selected.menu, governorId) : null;
+  const [breakdown, targets] = selected
+    ? await Promise.all([getGovernorBreakdown(selected.menu, governorId), getTargets(selected.menu.kingdomId)])
+    : [null, []];
+  const target = breakdown ? evaluateTarget(breakdown.member, targets) : null;
   const trend = [...history].reverse().map((h) => ({
     key: h.menu.id,
     label: h.menu.name,
@@ -65,12 +69,22 @@ export default async function GovernorPage({
           title={name}
           subtitle={formatTemplate(t.governor.subtitle, { id: governorId })}
           action={
-            <Link
-              href="/"
-              className="text-sm text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400"
-            >
-              {t.common.backHome}
-            </Link>
+            <div className="flex items-center gap-4">
+              {selected && (
+                <Link
+                  href={`/players/compare?kvk=${selected.menu.id}&a=${encodeURIComponent(governorId)}`}
+                  className="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-amber-400"
+                >
+                  {t.playerCompare.open}
+                </Link>
+              )}
+              <Link
+                href="/"
+                className="text-sm text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400"
+              >
+                {t.common.backHome}
+              </Link>
+            </div>
           }
         />
 
@@ -107,7 +121,7 @@ export default async function GovernorPage({
               </div>
             )}
 
-            <GovernorCharts breakdown={breakdown} kvkName={selected.menu.name} trend={trend} t={t} />
+            <GovernorCharts breakdown={breakdown} target={target} kvkName={selected.menu.name} trend={trend} t={t} />
 
             <Card className="overflow-x-auto">
               <table className="w-full whitespace-nowrap text-sm">

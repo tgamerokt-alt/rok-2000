@@ -117,12 +117,28 @@ export interface ManualKingdomStat {
   updatedAt: string;
 }
 
+/**
+ * One KvK target bracket: applies to governors whose *starting* power is
+ * >= minPower (up to the next bracket's minPower). Each requirement is
+ * T4+T5 kills / T4+T5 dead / DKP; 0 means "not required". See targets.ts.
+ */
+export interface TargetBracket {
+  minPower: number;
+  kills: number;
+  dead: number;
+  dkp: number;
+}
+
 export interface DbSchema {
   kingdoms: Kingdom[];
   kvkMenus: KvkMenu[];
   formulas: Record<string, DkpFormula>;
   campaigns: Campaign[];
   manualStats: Record<string, ManualKingdomStat>;
+  /** KvK targets per kingdom id — applies to every KvK menu of that kingdom. */
+  targets: Record<string, TargetBracket[]>;
+  /** UTC date (YYYY-MM-DD) of the last daily db.json backup — see withDb in db.ts. */
+  lastBackupDay?: string;
 }
 
 export const PRIMARY_KINGDOM_ID = "2000";

@@ -8,7 +8,7 @@ import { Theme } from "@/lib/theme";
 
 const COLLAPSE_STORAGE_KEY = "rok_sidebar_collapsed";
 
-export type IconName = "home" | "kingdom" | "compare" | "list" | "formula" | "layers";
+export type IconName = "home" | "kingdom" | "compare" | "list" | "formula" | "layers" | "target" | "backup" | "versus";
 
 export interface NavItem {
   href: string;
@@ -65,6 +65,31 @@ function Icon({ name, className }: { name: IconName; className?: string }) {
         <svg {...common}>
           <path d="M6 4h12M6 20h12" />
           <path d="M6 4l6 8-6 8M18 4l-6 8 6 8" />
+        </svg>
+      );
+    case "versus":
+      return (
+        <svg {...common}>
+          <circle cx="7" cy="8" r="3" />
+          <circle cx="17" cy="8" r="3" />
+          <path d="M2 20c0-3 2.2-5 5-5s5 2 5 5" />
+          <path d="M12 20c0-3 2.2-5 5-5s5 2 5 5" />
+        </svg>
+      );
+    case "target":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="8" />
+          <circle cx="12" cy="12" r="4" />
+          <circle cx="12" cy="12" r="0.8" />
+        </svg>
+      );
+    case "backup":
+      return (
+        <svg {...common}>
+          <path d="M3 12a9 9 0 1 0 3-6.7" />
+          <path d="M3 4v4h4" />
+          <path d="M12 8v4l3 2" />
         </svg>
       );
     case "layers":

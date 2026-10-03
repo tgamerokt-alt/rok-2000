@@ -107,12 +107,15 @@ src/app/
   dashboard/[kvkId]/                 public: full sortable/searchable dashboard (Statsmaster-style)
   dashboard/[kvkId]/analytics/       public: per-KvK analysis (KPI row, written insights, 6 hand-rolled SVG charts from src/components/charts/Charts.tsx — no chart library; colors are `.viz-root` CSS vars in globals.css, validated for colorblind separation + contrast on the card surfaces in both themes)
   compare/page.tsx                   public: cross-kingdom power/KP/DKP comparison
+  players/compare/                   public: two governors side by side within one KvK (?kvk=<menuId>&a=<id>&b=<id>, URL kept in sync for sharing) — player A = --viz-series-1 (blue), B = --viz-series-2 (orange); linked from each /governor page
   governor/[governorId]/             public: one governor's row from every KvK menu (any kingdom), via getGovernorHistory (data.ts) — player names in both stats tables link here. Also per-KvK charts (?kvk=<menuId>, default newest) from getGovernorBreakdown: rank/percentile tiles, player vs median-of-those-who-fought vs top-10 average, DKP by formula term, kills/dead by tier, DKP-per-KvK trend once there are ≥2 KvKs
   login/                             hidden (no nav link) — admin-only sign-in
   admin/                             protected by middleware
     page.tsx + AdminMenusClient.tsx  create/update/delete KvK menus (kingdom 2000 only)
     other-kingdoms/                  same AdminMenusClient for every kingdom except 2000 (?kingdom=<id> picks which one to view; the create form has a free-text Kingdom ID field — any numeric ID, known kingdoms are only suggestions)
     formula/                         DKP weight editor, per kingdom via ?kingdom=<id> (default 2000)
+    targets/                         KvK targets per kingdom (?kingdom=<id>): brackets by *starting* power, each with optional T4+T5 kills / T4+T5 dead / DKP minimums (0 = not required). Evaluated by evaluateTarget (src/lib/targets.ts, pure, used client+server) → dashboard Target column + met/missed filter, analysis-page chart, player-page meters
+    backups/                         lists + restores db.json backups (see Storage)
     kingdoms/                        multi-kingdom groups + per-kingdom snapshot upload
 
 Vercel Blob (one private store) — flat, no folders:
@@ -137,6 +140,15 @@ Vercel Blob (one private store) — flat, no folders:
   history) — dropped for Vercel Blob because Drive's API was noticeably
   slower for this app's every-mutation read-modify-write pattern, and Blob
   needs no interactive consent flow to set up.
+- **Daily db.json backups**: `withDb` (`db.ts`) saves the *pre-mutation*
+  db to `db-backup-day-DD.json` on the first write of each UTC day
+  (`db.lastBackupDay` tracks it) — 31 rotating slots, ~a month of history,
+  no `list()` call on the write path. `/admin/backups` lists them
+  (`listBlobFiles`, an "advanced" Blob op — fine for a rarely-opened admin
+  page) and `restoreBackupAction` restores via `replaceDb`, which first saves
+  the current db to `db-backup-before-restore.json`. Snapshot blobs of KvK
+  menus deleted since the backup are gone for good, so restore drops menus
+  whose files no longer exist rather than restoring them broken.
 - Env var: `BLOB_READ_WRITE_TOKEN`. On Vercel, this is injected
   automatically once a Blob store is attached to the project (Project →
   Storage → Create Database → Blob → Connect to Project) — no manual
