@@ -20,11 +20,13 @@ export default async function Sidebar() {
       label: formatTemplate(t.nav.myKingdom, { id: PRIMARY_KINGDOM_ID }),
       icon: "kingdom",
     },
+    { href: "/kingdoms", label: t.nav.otherKingdoms, icon: "layers" },
     { href: "/compare", label: t.nav.compare, icon: "compare" },
   ];
 
   const adminItems: NavItem[] = [
     { href: "/admin", label: t.admin.nav.menus, icon: "list" },
+    { href: "/admin/other-kingdoms", label: t.admin.nav.otherKingdoms, icon: "kingdom" },
     { href: "/admin/formula", label: t.admin.nav.formula, icon: "formula" },
     { href: "/admin/kingdoms", label: t.admin.nav.campaigns, icon: "layers" },
   ];

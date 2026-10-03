@@ -100,14 +100,16 @@ src/components/
 src/middleware.ts   protects /admin/** — redirects to /login if no valid session cookie
 
 src/app/
-  page.tsx                          public home (kingdom 2000 card)
+  page.tsx                          public home (kingdom 2000 card + first 8 other kingdoms with KvK menus)
+  kingdoms/page.tsx                  public: searchable list of every non-2000 kingdom with ≥1 KvK menu (single sidebar link, no per-kingdom nav items)
   kingdom/[kingdomId]/page.tsx       public: list of KvK menus for a kingdom
   kingdom/[kingdomId]/kvk/[kvkId]/   public: simple stats table
   dashboard/[kvkId]/                 public: full sortable/searchable dashboard (Statsmaster-style)
   compare/page.tsx                   public: cross-kingdom power/KP/DKP comparison
   login/                             hidden (no nav link) — admin-only sign-in
   admin/                             protected by middleware
-    page.tsx + AdminMenusClient.tsx  create/update/delete KvK menus (kingdom 2000)
+    page.tsx + AdminMenusClient.tsx  create/update/delete KvK menus (kingdom 2000 only)
+    other-kingdoms/                  same AdminMenusClient for every kingdom except 2000 (?kingdom=<id> picks which one to view; the create form has a free-text Kingdom ID field — any numeric ID, known kingdoms are only suggestions)
     formula/                         DKP weight editor
     kingdoms/                        multi-kingdom groups + per-kingdom snapshot upload
 

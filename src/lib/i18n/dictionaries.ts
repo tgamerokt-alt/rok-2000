@@ -32,6 +32,7 @@ export const dictionaries = {
       home: "Home",
       myKingdom: "Kingdom {id}",
       compare: "Compare kingdoms",
+      otherKingdoms: "Other kingdoms",
       adminSection: "Admin",
       toggleMenu: "Toggle menu",
       collapseMenu: "Collapse menu",
@@ -42,6 +43,16 @@ export const dictionaries = {
     home: {
       viewKvkList: "View KvK list →",
       noPrimaryKingdom: "No primary kingdom data yet",
+      otherKingdoms: "Other kingdoms",
+      kvkCount: "{count} KvK →",
+      viewAllKingdoms: "View all {count} →",
+    },
+    kingdomsIndex: {
+      title: "Other kingdoms",
+      subtitle: "Every kingdom with at least one KvK menu, besides the main one",
+      searchPlaceholder: "Search kingdom ID",
+      noMatch: "No kingdom matches that ID",
+      empty: "No other kingdoms have KvK data yet",
     },
     kingdomList: {
       title: "Kingdom {id}",
@@ -104,12 +115,17 @@ export const dictionaries = {
       error: "Invalid email or password",
     },
     admin: {
-      nav: { menus: "KvK menus", formula: "DKP formula", campaigns: "Campaigns" },
+      nav: { menus: "KvK menus", otherKingdoms: "KvK (other kingdoms)", formula: "DKP formula", campaigns: "Campaigns" },
       menus: {
         title: "Manage KvK — Kingdom {id}",
         subtitle:
           'Choose "Update files" on an existing menu to replace its data, or "Add menu" to create a new KvK. Upload two exports: one from the start date (captures each governor\'s starting power) and one from during/end of the KvK — used to calculate DKP and how much power changed.',
         addMenu: "+ Add menu (new KvK)",
+        kingdomPickerLabel: "View kingdom:",
+        kingdomIdLabel: "Kingdom ID",
+        kingdomIdPlaceholder: "Type any kingdom ID, e.g. 3005",
+        otherKingdomsTitle: "Manage KvK — other kingdoms",
+        primaryKingdomExcluded: "Kingdom 2000 is managed from the main \"KvK menus\" page",
         nameLabel: "Menu name (optional)",
         namePlaceholder: "e.g. KvK round 3",
         startDate: "Start date",
@@ -234,6 +250,7 @@ export const dictionaries = {
     },
     errors: {
       needDatesAndKingdom: "Please provide the kingdom, start date, and end date",
+      invalidKingdomId: "Kingdom ID must be a number (up to 6 digits)",
       needFile: "Please attach a statsExport.xlsx file",
       needFileOrName: "Please attach a file or change the name",
       cannotReadFile: "Could not read the uploaded file",
@@ -272,6 +289,7 @@ export const dictionaries = {
       home: "หน้าแรก",
       myKingdom: "Kingdom {id}",
       compare: "เปรียบเทียบ Kingdom",
+      otherKingdoms: "Kingdom อื่น",
       adminSection: "ผู้ดูแลระบบ",
       toggleMenu: "เปิด/ปิดเมนู",
       collapseMenu: "หุบเมนู",
@@ -282,6 +300,16 @@ export const dictionaries = {
     home: {
       viewKvkList: "ดูรายการ KvK →",
       noPrimaryKingdom: "ยังไม่มีข้อมูล Kingdom หลัก",
+      otherKingdoms: "Kingdom อื่น",
+      kvkCount: "{count} KvK →",
+      viewAllKingdoms: "ดูทั้งหมด {count} →",
+    },
+    kingdomsIndex: {
+      title: "Kingdom อื่น",
+      subtitle: "ทุก kingdom ที่มีเมนู KvK อย่างน้อย 1 เมนู นอกจาก kingdom หลัก",
+      searchPlaceholder: "ค้นหา ID kingdom",
+      noMatch: "ไม่พบ kingdom ที่ตรงกับ ID นี้",
+      empty: "ยังไม่มีข้อมูล KvK ของ kingdom อื่น",
     },
     kingdomList: {
       title: "Kingdom {id}",
@@ -344,12 +372,17 @@ export const dictionaries = {
       error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
     },
     admin: {
-      nav: { menus: "KvK เมนู", formula: "สูตร DKP", campaigns: "แคมเปญ" },
+      nav: { menus: "KvK เมนู", otherKingdoms: "KvK (Kingdom อื่น)", formula: "สูตร DKP", campaigns: "แคมเปญ" },
       menus: {
         title: "จัดการ KvK — Kingdom {id}",
         subtitle:
           'เลือก "อัปเดตไฟล์" บนเมนูเดิมเพื่อแทนที่ข้อมูล หรือกด "เพิ่มเมนู" เพื่อสร้าง KvK ใหม่ — อัปโหลด 2 ไฟล์: ไฟล์วันเริ่มต้น (เก็บพลังเริ่มต้นของแต่ละคน) และไฟล์ช่วง/ปลาย KvK (ใช้คำนวณ DKP และดูว่าพลังเปลี่ยนไปเท่าไหร่)',
         addMenu: "+ เพิ่มเมนู (KvK ใหม่)",
+        kingdomPickerLabel: "ดู Kingdom:",
+        kingdomIdLabel: "Kingdom ID",
+        kingdomIdPlaceholder: "พิมพ์ ID kingdom อะไรก็ได้ เช่น 3005",
+        otherKingdomsTitle: "จัดการ KvK — Kingdom อื่น",
+        primaryKingdomExcluded: "Kingdom 2000 จัดการได้ที่หน้า \"KvK เมนู\" หลัก",
         nameLabel: "ชื่อเมนู (ไม่บังคับ)",
         namePlaceholder: "เช่น KvK รอบที่ 3",
         startDate: "วันที่เริ่มต้น",
@@ -472,6 +505,7 @@ export const dictionaries = {
     },
     errors: {
       needDatesAndKingdom: "กรุณาระบุ Kingdom, วันที่เริ่มต้น และวันที่สิ้นสุด",
+      invalidKingdomId: "Kingdom ID ต้องเป็นตัวเลข (ไม่เกิน 6 หลัก)",
       needFile: "กรุณาแนบไฟล์ statsExport.xlsx",
       needFileOrName: "กรุณาแนบไฟล์ หรือเปลี่ยนชื่อเมนู",
       cannotReadFile: "ไม่สามารถอ่านไฟล์ที่อัปโหลดได้",

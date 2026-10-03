@@ -144,6 +144,9 @@ export async function createKvkMenuAction(
   if (!kingdomId || !startDate || !endDate) {
     return { error: t.errors.needDatesAndKingdom };
   }
+  if (!/^\d{1,6}$/.test(kingdomId)) {
+    return { error: t.errors.invalidKingdomId };
+  }
 
   const beforeResult = await readValidatedFile(formData, "beforeFile", t);
   if ("error" in beforeResult) return { error: beforeResult.error };
@@ -176,6 +179,7 @@ export async function createKvkMenuAction(
   });
 
   revalidatePath("/admin");
+  revalidatePath("/admin/other-kingdoms");
   revalidatePath(`/kingdom/${kingdomId}`);
   return { success: true };
 }
@@ -268,6 +272,7 @@ export async function updateKvkMenuFileAction(
   ]);
 
   revalidatePath("/admin");
+  revalidatePath("/admin/other-kingdoms");
   revalidatePath(`/kingdom/${menuInfo.kingdomId}`);
   return { success: true };
 }
@@ -292,6 +297,7 @@ export async function deleteKvkMenuAction(menuId: string) {
     ]);
   }
   revalidatePath("/admin");
+  revalidatePath("/admin/other-kingdoms");
   if (kingdomId) revalidatePath(`/kingdom/${kingdomId}`);
 }
 

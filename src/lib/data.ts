@@ -2,7 +2,7 @@ import { readDbSnapshot } from "./db";
 import { kvkFileName } from "./storage";
 import { readBlobFile } from "./blobStorage";
 import { diffSnapshots, scoreMembers } from "./dkp";
-import { DEFAULT_DKP_FORMULA, DkpFormula, KvkMenu, ManualKingdomStat, MemberStat } from "./types";
+import { DEFAULT_DKP_FORMULA, DkpFormula, KvkMenu, ManualKingdomStat, MemberStat, PRIMARY_KINGDOM_ID } from "./types";
 
 export async function getFormula(kingdomId: string): Promise<DkpFormula> {
   const db = await readDbSnapshot();
@@ -58,4 +58,16 @@ export async function getManualKingdomStat(kingdomId: string): Promise<ManualKin
 export async function listManualKingdomStats(): Promise<Record<string, ManualKingdomStat>> {
   const db = await readDbSnapshot();
   return db.manualStats;
+}
+
+/** Every non-primary kingdom that has at least one KvK menu, with its menu count, sorted by id. */
+export async function listOtherKingdomsWithMenus(): Promise<{ id: string; menuCount: number }[]> {
+  const menus = await listKvkMenus();
+  const counts = new Map<string, number>();
+  for (const m of menus) {
+    if (m.kingdomId !== PRIMARY_KINGDOM_ID) counts.set(m.kingdomId, (counts.get(m.kingdomId) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([id, menuCount]) => ({ id, menuCount }))
+    .sort((a, b) => Number(a.id) - Number(b.id));
 }

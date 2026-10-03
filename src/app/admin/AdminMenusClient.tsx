@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ActionState,
   createKvkMenuAction,
@@ -13,12 +14,38 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { Card } from "@/components/ui/Card";
 import { SnapshotArrow, SnapshotSlot } from "@/components/ui/SnapshotSlot";
+import { ComboBoxInput } from "@/components/ui/ComboBoxInput";
 import { confirmAction, notifyResult } from "@/lib/confirm";
 
 const initialState: ActionState = {};
 
-function CreateMenuForm({ kingdomId, t }: { kingdomId: string; t: Dictionary }) {
-  const [state, formAction, pending] = useActionState(createKvkMenuAction, initialState);
+interface PickerConfig {
+  basePath: string;
+  /** Kingdoms that already have menus — what the "view" dropdown lists. */
+  kingdomIds: string[];
+  /** Suggestions for the create form's free-text Kingdom ID field (any ID is accepted). */
+  suggestions: string[];
+  excludeId?: string;
+}
+
+function CreateMenuForm({
+  kingdomId,
+  picker,
+  t,
+}: {
+  kingdomId: string | null;
+  picker?: PickerConfig;
+  t: Dictionary;
+}) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(async (prev: ActionState, formData: FormData) => {
+    const id = String(formData.get("kingdomId") || "").trim();
+    if (picker && id === picker.excludeId) return { error: t.admin.menus.primaryKingdomExcluded };
+    const result = await createKvkMenuAction(prev, formData);
+    // Creating a menu for a different kingdom than the one on screen → jump to it.
+    if (result.success && picker && id !== kingdomId) router.push(`${picker.basePath}?kingdom=${id}`);
+    return result;
+  }, initialState);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -42,7 +69,23 @@ function CreateMenuForm({ kingdomId, t }: { kingdomId: string; t: Dictionary }) 
       action={formAction}
       className="mb-6 flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/50 dark:border-slate-700/60 dark:bg-slate-900 dark:shadow-black/20"
     >
-      <input type="hidden" name="kingdomId" value={kingdomId} />
+      {picker ? (
+        <div>
+          <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
+            {t.admin.menus.kingdomIdLabel}
+          </label>
+          <ComboBoxInput
+            name="kingdomId"
+            required
+            defaultValue={kingdomId ?? ""}
+            placeholder={t.admin.menus.kingdomIdPlaceholder}
+            options={picker.suggestions}
+            className="w-full max-w-xs"
+          />
+        </div>
+      ) : (
+        <input type="hidden" name="kingdomId" value={kingdomId ?? ""} />
+      )}
 
       <div>
         <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
@@ -94,6 +137,29 @@ function CreateMenuForm({ kingdomId, t }: { kingdomId: string; t: Dictionary }) 
         </button>
       </div>
     </form>
+  );
+}
+
+function KingdomPicker({ kingdomId, picker, t }: { kingdomId: string | null; picker: PickerConfig; t: Dictionary }) {
+  const router = useRouter();
+  if (picker.kingdomIds.length === 0) return null;
+
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-2">
+      <span className="text-xs text-slate-500 dark:text-slate-400">{t.admin.menus.kingdomPickerLabel}</span>
+      <select
+        value={kingdomId ?? ""}
+        onChange={(e) => e.target.value && router.push(`${picker.basePath}?kingdom=${e.target.value}`)}
+        className="rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-sm font-semibold text-slate-900 focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+      >
+        {!kingdomId && <option value="">—</option>}
+        {picker.kingdomIds.map((id) => (
+          <option key={id} value={id}>
+            {id}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 
@@ -254,11 +320,13 @@ function MenuRow({ menu, t, locale }: { menu: KvkMenu; t: Dictionary; locale: st
 
 export default function AdminMenusClient({
   kingdomId,
+  picker,
   menus,
   t,
   locale,
 }: {
-  kingdomId: string;
+  kingdomId: string | null;
+  picker?: PickerConfig;
   menus: KvkMenu[];
   t: Dictionary;
   locale: string;
@@ -267,11 +335,15 @@ export default function AdminMenusClient({
     <main className="flex-1">
       <PageContainer>
         <PageHeader
-          title={formatTemplate(t.admin.menus.title, { id: kingdomId })}
+          title={
+            kingdomId ? formatTemplate(t.admin.menus.title, { id: kingdomId }) : t.admin.menus.otherKingdomsTitle
+          }
           subtitle={t.admin.menus.subtitle}
         />
 
-        <CreateMenuForm kingdomId={kingdomId} t={t} />
+        {picker && <KingdomPicker kingdomId={kingdomId} picker={picker} t={t} />}
+
+        <CreateMenuForm key={kingdomId ?? ""} kingdomId={kingdomId} picker={picker} t={t} />
 
         <div className="flex flex-col gap-3">
           {menus.length === 0 && (

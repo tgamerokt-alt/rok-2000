@@ -1,14 +1,17 @@
 import Link from "next/link";
-import { listKingdoms } from "@/lib/data";
+import { listKingdoms, listOtherKingdomsWithMenus } from "@/lib/data";
+import { KingdomGrid } from "@/components/KingdomGrid";
 import { PRIMARY_KINGDOM_ID } from "@/lib/types";
 import { getDictionary } from "@/lib/i18n/locale";
+import { formatTemplate } from "@/lib/i18n/dictionaries";
 
 export const dynamic = "force-dynamic";
 
+const HOME_KINGDOM_LIMIT = 8;
+
 export default async function HomePage() {
-  const kingdoms = await listKingdoms();
+  const [kingdoms, others, { t }] = await Promise.all([listKingdoms(), listOtherKingdomsWithMenus(), getDictionary()]);
   const primary = kingdoms.find((k) => k.id === PRIMARY_KINGDOM_ID);
-  const { t } = await getDictionary();
 
   return (
     <main className="flex-1 flex flex-col items-center justify-center gap-6 p-8">
@@ -24,6 +27,19 @@ export default async function HomePage() {
         </Link>
       ) : (
         <p className="text-slate-500 dark:text-slate-400">{t.home.noPrimaryKingdom}</p>
+      )}
+      {others.length > 0 && (
+        <section className="w-full max-w-3xl">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400">{t.home.otherKingdoms}</h2>
+            {others.length > HOME_KINGDOM_LIMIT && (
+              <Link href="/kingdoms" className="text-sm text-amber-600 hover:underline dark:text-amber-400">
+                {formatTemplate(t.home.viewAllKingdoms, { count: String(others.length) })}
+              </Link>
+            )}
+          </div>
+          <KingdomGrid kingdoms={others.slice(0, HOME_KINGDOM_LIMIT)} t={t} />
+        </section>
       )}
       <Link
         href="/compare"

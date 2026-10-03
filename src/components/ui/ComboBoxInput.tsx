@@ -10,15 +10,17 @@ export function ComboBoxInput({
   required,
   placeholder,
   options,
+  defaultValue = "",
   className = "",
 }: {
   name: string;
   required?: boolean;
   placeholder?: string;
   options: string[];
+  defaultValue?: string;
   className?: string;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
