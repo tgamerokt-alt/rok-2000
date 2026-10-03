@@ -106,11 +106,12 @@ src/app/
   kingdom/[kingdomId]/kvk/[kvkId]/   public: simple stats table
   dashboard/[kvkId]/                 public: full sortable/searchable dashboard (Statsmaster-style)
   compare/page.tsx                   public: cross-kingdom power/KP/DKP comparison
+  governor/[governorId]/             public: one governor's row from every KvK menu (any kingdom), via getGovernorHistory (data.ts) — player names in both stats tables link here
   login/                             hidden (no nav link) — admin-only sign-in
   admin/                             protected by middleware
     page.tsx + AdminMenusClient.tsx  create/update/delete KvK menus (kingdom 2000 only)
     other-kingdoms/                  same AdminMenusClient for every kingdom except 2000 (?kingdom=<id> picks which one to view; the create form has a free-text Kingdom ID field — any numeric ID, known kingdoms are only suggestions)
-    formula/                         DKP weight editor
+    formula/                         DKP weight editor, per kingdom via ?kingdom=<id> (default 2000)
     kingdoms/                        multi-kingdom groups + per-kingdom snapshot upload
 
 Vercel Blob (one private store) — flat, no folders:

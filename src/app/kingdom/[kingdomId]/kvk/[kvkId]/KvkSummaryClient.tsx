@@ -350,7 +350,11 @@ export default function KvkSummaryClient({
                     <RankBadge rank={pageStart + i + 1} showMedal={sortKey === "dkp" && sortDir === "desc"} />
                   </td>
                   <td className="px-3 py-2 text-slate-500">{m.governor_id}</td>
-                  <td className="px-3 py-2 font-medium text-slate-900 dark:text-white">{m.name}</td>
+                  <td className="px-3 py-2 font-medium text-slate-900 dark:text-white">
+                    <Link href={`/governor/${m.governor_id}`} className="hover:text-amber-600 dark:hover:text-amber-400">
+                      {m.name}
+                    </Link>
+                  </td>
                   {visibleColumns.map((col) => (
                     <td key={col.key} className={`px-3 py-2 text-right ${col.cellClassName(m)}`}>
                       {col.render(m)}
@@ -378,7 +382,12 @@ export default function KvkSummaryClient({
                 <div className="flex items-center gap-2">
                   <RankBadge rank={pageStart + i + 1} showMedal={sortKey === "dkp" && sortDir === "desc"} />
                   <div>
-                    <div className="font-medium text-slate-900 dark:text-white">{m.name}</div>
+                    <Link
+                      href={`/governor/${m.governor_id}`}
+                      className="font-medium text-slate-900 hover:text-amber-600 dark:text-white dark:hover:text-amber-400"
+                    >
+                      {m.name}
+                    </Link>
                     <div className="text-[11px] text-slate-500">{m.governor_id}</div>
                   </div>
                 </div>

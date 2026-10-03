@@ -329,6 +329,7 @@ export async function updateFormulaAction(
 
   revalidatePath("/admin/formula");
   revalidatePath(`/kingdom/${kingdomId}`);
+  revalidatePath("/governor/[governorId]", "page");
   return { success: true };
 }
 

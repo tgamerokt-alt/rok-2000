@@ -1,7 +1,7 @@
 import { readDbSnapshot } from "./db";
 import { kvkFileName } from "./storage";
 import { readBlobFile } from "./blobStorage";
-import { diffSnapshots, scoreMembers } from "./dkp";
+import { diffSnapshots, ScoredMember, scoreMembers } from "./dkp";
 import { DEFAULT_DKP_FORMULA, DkpFormula, KvkMenu, ManualKingdomStat, MemberStat, PRIMARY_KINGDOM_ID } from "./types";
 
 export async function getFormula(kingdomId: string): Promise<DkpFormula> {
@@ -70,4 +70,42 @@ export async function listOtherKingdomsWithMenus(): Promise<{ id: string; menuCo
   return [...counts]
     .map(([id, menuCount]) => ({ id, menuCount }))
     .sort((a, b) => Number(a.id) - Number(b.id));
+}
+
+export async function hasCustomFormula(kingdomId: string): Promise<boolean> {
+  const db = await readDbSnapshot();
+  return Boolean(db.formulas[kingdomId]);
+}
+
+export interface GovernorHistoryEntry {
+  menu: KvkMenu;
+  member: ScoredMember;
+  /** DKP rank among that menu's complete (non-`incomplete`) rows; null if this row is incomplete. */
+  rank: number | null;
+  rankedCount: number;
+}
+
+/**
+ * One governor's row from every KvK menu they appear in, across all kingdoms
+ * (a governor can migrate), newest first. Scores every menu, so cost grows
+ * with the number of menus — fine at this app's scale.
+ */
+export async function getGovernorHistory(governorId: string): Promise<GovernorHistoryEntry[]> {
+  const menus = await listKvkMenus();
+  const entries = await Promise.all(
+    menus.map(async (menu): Promise<GovernorHistoryEntry | null> => {
+      let members: ScoredMember[];
+      try {
+        members = await getScoredMembers(menu);
+      } catch {
+        return null; // a menu with a missing snapshot blob shouldn't break the whole page
+      }
+      const member = members.find((m) => m.governor_id === governorId);
+      if (!member) return null;
+      const ranked = members.filter((m) => !m.incomplete).sort((a, b) => b.dkp - a.dkp);
+      const idx = member.incomplete ? -1 : ranked.findIndex((m) => m.governor_id === governorId);
+      return { menu, member, rank: idx >= 0 ? idx + 1 : null, rankedCount: ranked.length };
+    })
+  );
+  return entries.filter((e): e is GovernorHistoryEntry => e !== null);
 }

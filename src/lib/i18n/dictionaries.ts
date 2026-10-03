@@ -76,6 +76,16 @@ export const dictionaries = {
       deadT4T5: "T4+T5 Dead",
       dkp: "DKP",
     },
+    governor: {
+      subtitle: "Governor ID {id} — results across every KvK",
+      empty: "This governor doesn't appear in any KvK yet",
+      kvkCount: "KvKs",
+      totalDkp: "Total DKP",
+      totalKp: "Total Kills (T4+T5)",
+      totalDead: "Total Dead",
+      kvk: "KvK",
+      rank: "DKP rank",
+    },
     dashboard: {
       players: "players",
       totalPower: "Total Power",
@@ -154,6 +164,8 @@ export const dictionaries = {
       },
       formula: {
         title: "DKP formula — Kingdom {id}",
+        kingdomPickerLabel: "Kingdom:",
+        usingDefault: "Using the default formula — save to customize it for this kingdom",
         subtitle: "DKP = sum(weight × stat) for enabled rows only — kills and dead troops are each weighted per tier, so T4 and T5 can score differently.",
         kills: "Kills",
         deadTroops: "Dead Troops",
@@ -333,6 +345,16 @@ export const dictionaries = {
       deadT4T5: "T4+T5 Dead",
       dkp: "DKP",
     },
+    governor: {
+      subtitle: "Governor ID {id} — ผลงานในทุก KvK",
+      empty: "ผู้เล่นคนนี้ยังไม่อยู่ใน KvK ไหนเลย",
+      kvkCount: "จำนวน KvK",
+      totalDkp: "DKP รวม",
+      totalKp: "Kills รวม (T4+T5)",
+      totalDead: "Dead รวม",
+      kvk: "KvK",
+      rank: "อันดับ DKP",
+    },
     dashboard: {
       players: "ผู้เล่น",
       totalPower: "Total Power",
@@ -411,6 +433,8 @@ export const dictionaries = {
       },
       formula: {
         title: "สูตรคำนวณ DKP — Kingdom {id}",
+        kingdomPickerLabel: "Kingdom:",
+        usingDefault: "ใช้สูตรค่าเริ่มต้นอยู่ — กดบันทึกเพื่อตั้งสูตรเฉพาะของ kingdom นี้",
         subtitle:
           "DKP = ผลรวม(น้ำหนัก × ค่าสถิติ) เฉพาะรายการที่เปิดใช้งาน — ทั้งฆ่าและตายกำหนดน้ำหนักแยกตาม Tier ได้ ดังนั้น T4 กับ T5 ให้คะแนนไม่เท่ากันได้",
         kills: "Kills",

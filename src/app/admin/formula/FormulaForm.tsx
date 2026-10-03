@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 import { ActionState, resetFormulaAction, updateFormulaAction } from "@/lib/actions";
 import { DkpFormula, StatWeight } from "@/lib/types";
 import { Dictionary, formatTemplate } from "@/lib/i18n/dictionaries";
@@ -47,13 +48,18 @@ function WeightRow({
 
 export default function FormulaForm({
   kingdomId,
+  kingdomIds,
+  isCustom,
   formula,
   t,
 }: {
   kingdomId: string;
+  kingdomIds: string[];
+  isCustom: boolean;
   formula: DkpFormula;
   t: Dictionary;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(updateFormulaAction, initialState);
 
   const killRows: { key: keyof DkpFormula; label: string }[] = [
@@ -79,6 +85,24 @@ export default function FormulaForm({
           title={formatTemplate(t.admin.formula.title, { id: kingdomId })}
           subtitle={t.admin.formula.subtitle}
         />
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500 dark:text-slate-400">{t.admin.formula.kingdomPickerLabel}</span>
+          <select
+            value={kingdomId}
+            onChange={(e) => router.push(`/admin/formula?kingdom=${e.target.value}`)}
+            className="rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-sm font-semibold text-slate-900 focus:border-amber-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+          >
+            {kingdomIds.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+          {!isCustom && (
+            <span className="text-xs text-slate-500 dark:text-slate-400">{t.admin.formula.usingDefault}</span>
+          )}
+        </div>
 
         <Card className="p-5">
           <form action={formAction} className="flex flex-col gap-5">

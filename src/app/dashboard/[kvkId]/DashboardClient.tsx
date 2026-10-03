@@ -368,7 +368,9 @@ export default function DashboardClient({
                     />
                   </td>
                   <td className="px-3 py-2 font-medium text-slate-900 dark:text-white">
-                    {m.name}
+                    <Link href={`/governor/${m.governor_id}`} className="hover:text-amber-600 dark:hover:text-amber-400">
+                      {m.name}
+                    </Link>
                     <div className="text-[11px] text-slate-500">{m.governor_id}</div>
                   </td>
                   {visibleColumns.map((col) => (
@@ -401,7 +403,12 @@ export default function DashboardClient({
                     showMedal={sortKey === "dkp" && sortDir === "desc"}
                   />
                   <div>
-                    <div className="font-medium text-slate-900 dark:text-white">{m.name}</div>
+                    <Link
+                      href={`/governor/${m.governor_id}`}
+                      className="font-medium text-slate-900 hover:text-amber-600 dark:text-white dark:hover:text-amber-400"
+                    >
+                      {m.name}
+                    </Link>
                     <div className="text-[11px] text-slate-500">{m.governor_id}</div>
                   </div>
                 </div>
