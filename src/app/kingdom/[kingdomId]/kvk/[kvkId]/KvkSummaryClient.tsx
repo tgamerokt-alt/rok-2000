@@ -13,6 +13,7 @@ import { Pagination } from "@/components/ui/Pagination";
 import { StatCard } from "@/components/ui/StatCard";
 import { RankBadge } from "@/components/ui/RankBadge";
 import { ColumnToggle } from "@/components/ui/ColumnToggle";
+import PlayerLink from "@/components/ui/PlayerLink";
 
 const PAGE_SIZE = 50;
 
@@ -367,9 +368,7 @@ export default function KvkSummaryClient({
                   </td>
                   <td className="px-3 py-2 text-slate-500">{m.governor_id}</td>
                   <td className="px-3 py-2 font-medium text-slate-900 dark:text-white">
-                    <Link href={`/governor/${m.governor_id}`} className="hover:text-amber-600 dark:hover:text-amber-400">
-                      {m.name}
-                    </Link>
+                    <PlayerLink governorId={m.governor_id} name={m.name} />
                     {m.previous_name && (
                       <div className="text-[11px] italic text-slate-500">{formatTemplate(t.common.formerly, { name: m.previous_name })}</div>
                     )}
@@ -399,24 +398,19 @@ export default function KvkSummaryClient({
             <Card key={m.governor_id} className="p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <RankBadge rank={pageStart + i + 1} showMedal={sortKey === "dkp" && sortDir === "desc"} />
-                  <div>
-                    <Link
-                      href={`/governor/${m.governor_id}`}
-                      className="font-medium text-slate-900 hover:text-amber-600 dark:text-white dark:hover:text-amber-400"
-                    >
-                      {m.name}
-                    </Link>
-                    {m.previous_name && (
-                      <div className="text-[11px] italic text-slate-500">{formatTemplate(t.common.formerly, { name: m.previous_name })}</div>
-                    )}
-                    <div className="text-[11px] text-slate-500">{m.governor_id}</div>
-                  </div>
-                </div>
+                  <RankBadge rank={pageStart + i + 1} showMedal={sortKey === "dkp" && sortDir === "desc"} /></div>
                 <div className="text-right">
                   <div className="text-[11px] text-slate-500">{t.kvkSummary.dkp}</div>
                   <div className="font-bold text-amber-600 dark:text-amber-400">{cell(m, fmt, m.dkp)}</div>
                 </div>
+              </div>
+              <div className="mb-3">
+                <PlayerLink
+                  governorId={m.governor_id}
+                  name={m.name}
+                  size="touch"
+                  note={m.previous_name ? formatTemplate(t.common.formerly, { name: m.previous_name }) : undefined}
+                />
               </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                 {visibleColumns
