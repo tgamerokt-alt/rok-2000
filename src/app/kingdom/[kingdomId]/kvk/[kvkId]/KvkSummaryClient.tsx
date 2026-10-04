@@ -14,6 +14,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { RankBadge } from "@/components/ui/RankBadge";
 import { ColumnToggle } from "@/components/ui/ColumnToggle";
 import PlayerLink from "@/components/ui/PlayerLink";
+import MobilePlayerCard from "@/components/ui/MobilePlayerCard";
 
 const PAGE_SIZE = 50;
 
@@ -395,37 +396,17 @@ export default function KvkSummaryClient({
         {/* Cards — narrow viewports */}
         <div className="flex flex-col gap-3 md:hidden">
           {paginated.map((m, i) => (
-            <Card key={m.governor_id} className="p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <RankBadge rank={pageStart + i + 1} showMedal={sortKey === "dkp" && sortDir === "desc"} /></div>
-                <div className="text-right">
-                  <div className="text-[11px] text-slate-500">{t.kvkSummary.dkp}</div>
-                  <div className="font-bold text-amber-600 dark:text-amber-400">{cell(m, fmt, m.dkp)}</div>
-                </div>
-              </div>
-              <div className="mb-3">
-                <PlayerLink
-                  governorId={m.governor_id}
-                  name={m.name}
-                  size="touch"
-                  note={m.previous_name ? formatTemplate(t.common.formerly, { name: m.previous_name }) : undefined}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                {visibleColumns
-                  .filter((c) => c.key !== "dkp")
-                  .map((col) => (
-                    <div
-                      key={col.key}
-                      className="flex items-center justify-between gap-2 border-t border-slate-200 py-1 dark:border-slate-800/60"
-                    >
-                      <span className="text-slate-500">{col.label}</span>
-                      <span className={col.cellClassName(m)}>{col.render(m)}</span>
-                    </div>
-                  ))}
-              </div>
-            </Card>
+            <MobilePlayerCard
+              key={m.governor_id}
+              member={m}
+              rank={pageStart + i + 1}
+              showMedal={sortKey === "dkp" && sortDir === "desc"}
+              note={m.previous_name ? formatTemplate(t.common.formerly, { name: m.previous_name }) : undefined}
+              dkpLabel={t.kvkSummary.dkp}
+              dkp={cell(m, fmt, m.dkp)}
+              columns={visibleColumns}
+              allStatsLabel={t.common.allStats}
+            />
           ))}
           {filtered.length === 0 && (
             <Card className="p-6 text-center text-slate-500">{t.dashboard.noResults}</Card>

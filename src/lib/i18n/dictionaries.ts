@@ -15,6 +15,7 @@ export const dictionaries = {
   en: {
     common: {
       formerly: "(formerly: {name})",
+      allStats: "All stats",
       siteTitle: "RoK Kingdom Stats",
       backHome: "← Back to home",
       backToKvkList: "← Back to KvK list",
@@ -557,6 +558,7 @@ export const dictionaries = {
   th: {
     common: {
       formerly: "(เดิม: {name})",
+      allStats: "สถิติทั้งหมด",
       siteTitle: "RoK Kingdom Stats",
       backHome: "← กลับหน้าแรก",
       backToKvkList: "← กลับรายการ KvK",
